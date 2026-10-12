@@ -11,11 +11,11 @@ A record store designed with **truthfulness, provenance, and change management**
 **Nothing is ever deleted, and nothing is ever updated in place.** There is no delete or update operation in the API — by construction, not by policy. All change is append:
 
 - A **record** is a lineage of **snapshots**.
-- A **snapshot** is content-addressed: `snapshot_id = SHA-256(content + parent_snapshot_id)`. The first snapshot's parent is null.
+- A **snapshot** is content-addressed (named by the hash of its contents): `snapshot_id = SHA-256(content + parent_snapshot_id)`. The first snapshot's parent is null.
 - **Revision** = a new snapshot. The old one is *superseded* and stays readable.
 - **Withdrawal** = a new snapshot with `status: "dead"`, a mandatory `reason`, and `score: 0.0`. Status serves correct consumers; 0.0 protects score-only consumers from continuing to use a dead record.
 - **Score** (epistemic weight) and **status** (lifecycle) are separate fields and are never conflated.
-- The **current view** is a fold (latest snapshot per record, dead excluded by default). It is a projection — producing it never alters the log.
+- The **current view** is a fold — the events applied in order to produce it (latest snapshot per record, dead excluded by default). It is a projection — producing it never alters the log.
 
 ## 3. Integrity in five layers
 
@@ -23,7 +23,7 @@ A record store designed with **truthfulness, provenance, and change management**
 2. **Content addressing.** Snapshot lineage is hash-linked (layer 2 makes a snapshot's ancestry tamper-evident independently of the event chain).
 3. **Signatures.** Appends may be signed with the actor's Ed25519 key; the event carries the signer public key and signature over the event hash. Verification checks signatures against embedded keys (self-consistency) or a caller-supplied trusted-key map (identity).
 4. **Merkle checkpoints.** A `checkpoint` event closes a range with the Merkle root over its event hashes — a compact commitment to a whole history.
-5. **External anchoring.** Checkpoint roots are meant to be deposited where the operator does not control them (a DOI-minting repository, an RFC 3161 timestamp authority, a transparency log). Layers 1–4 make tampering evident to the operator; layer 5 makes it evident to *anyone*, because a sole-copy operator could otherwise recompute a chain from genesis. The crate produces roots and receipt data; anchor transport belongs to the embedding system, and a deployment that skips anchoring must say so.
+5. **External anchoring.** Checkpoint roots are meant to be deposited where the operator does not control them (a DOI-minting repository, a timestamp authority under the RFC 3161 timestamping standard, a transparency log). Layers 1–4 make tampering evident to the operator; layer 5 makes it evident to *anyone*, because a sole-copy operator could otherwise recompute a chain from the very first event (from genesis). The crate produces roots and receipt data; anchor transport belongs to the embedding system, and a deployment that skips anchoring must say so.
 
 A log that fails verification **cannot be opened for appends** (`Ledger::open` refuses): a broken record is evidence, not a writing surface.
 
