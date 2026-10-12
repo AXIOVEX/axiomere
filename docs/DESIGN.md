@@ -37,6 +37,7 @@ AXMR1\n
 
 - Line 1: magic `AXMR1`. Verification rejects anything else.
 - One event per line, **canonical JSON** (object keys sorted recursively, compact separators) — hashing is defined over this encoding, so independent implementations can verify each other's files byte-for-byte.
+- **Numbers.** Integers are exact. A non-integer number is an IEEE-754 double rendered in its **shortest round-trip decimal form** (the shortest decimal string that parses back to the same double). Parsing a conforming file **must be correctly rounded** (round-to-nearest-even): a parser that approximates — landing even 1 ULP from the written value — recomputes a different canonical body and reports a sound file as broken. This requirement is part of the format contract; it was learned from a real defect (Spec 002, 2026-10-12), in which the reference implementation's own JSON parser misread roughly a third of high-precision float payloads on verification.
 - Appends are fsync'd. The format is deliberately inspectable with generic tools; a future binary framing must preserve the same event model and hash definitions.
 
 ## 5. Signing keys
