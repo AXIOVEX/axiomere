@@ -1,0 +1,224 @@
+{
+  "spec": "002-float-canonicalization",
+  "version": "0.1.0",
+  "date": "2026-10-12",
+  "claims": [
+    {
+      "id": "AXM-002-01",
+      "kind": "observation",
+      "status": "supported",
+      "text": "The float verification defect is reader-side: serde_json's default decimal-to-f64 parsing is not correctly rounded, so for a class of payload floats the verifier recomputes a canonical body from bits 1 ULP away from the bits hashed at append, and reports hash-mismatch on an untampered log.",
+      "boundary": [
+        "Scope: verification path (read_events + verify_events) in crates/axiomere and its bindings",
+        "The writer (canonical rendering) is not implicated: the stored text is the correct shortest form of the appended value"
+      ],
+      "evidence": [
+        {
+          "ref": "Reproduction 2026-10-12: append {\"ts_like\": 1791810119.6349843} via Python package -> verify() false in-session, Database.open raises 'verification failed at seq 1: hash-mismatch'; frozen as crates/axiomere/tests/fixtures/legacy-floats-defect.axmr",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test"
+        },
+        {
+          "ref": "Primitive probe (probe results recorded in spec \u00a72): serde_json parses text 1791810119.6349843 to bits 0x41dab33691e8a396; correctly-rounded parse (Python) gives 0x41dab33691e8a395, whose serde_json rendering is the same text",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "artifact"
+        },
+        {
+          "ref": "Tekmerion finding, src/tekmerion/platform/ledger.py payload-discipline note (2026-10-12): same failure observed downstream with the same value",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "primary"
+        }
+      ],
+      "falsification_tests": [
+        "F-FLT-1: exhibit the failure with a correctly-rounded parser substituted for serde_json's default while holding the stored bytes fixed \u2014 if it still fails, the defect is not reader-side parsing."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md"
+    },
+    {
+      "id": "AXM-002-02",
+      "kind": "observation",
+      "status": "supported",
+      "text": "The trigger class is payload floats whose canonical decimal needs at least 17 significant digits (including exponent forms); the parse error is always exactly 1 ULP; decimals of at most 16 significant digits are unaffected.",
+      "boundary": [
+        "Rates measured on random bit patterns and timestamp-shaped decimals; the class boundary (17 significant digits) is the invariant, the percentages are sample statistics"
+      ],
+      "evidence": [
+        {
+          "ref": "Bit-pattern sweep: 593,459 / 2,000,000 random finite f64 fail format->parse round trip under the default parser (spec \u00a72)",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test"
+        },
+        {
+          "ref": "Shape sweep: timestamp-shaped decimals (10 integer digits + k fraction digits), 200,000 trials per k: 0 unstable at k<=6 (<=16 significant digits), ~5% at k=7 (17 significant), ~12% at k>=9; all mismatches +-1 ULP",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test"
+        }
+      ],
+      "falsification_tests": [
+        "F-FLT-2: a float with a canonical form of at most 16 significant digits that fails the pre-fix round trip, or a pre-fix parse error of 2+ ULP."
+      ],
+      "uncertainty": "low",
+      "severity": "medium",
+      "source_ref": "specs/002-float-canonicalization/spec.md"
+    },
+    {
+      "id": "AXM-002-03",
+      "kind": "requirement",
+      "status": "draft",
+      "text": "VALIDITY PRESERVATION (hard constraint): every .axmr log that verifies before the fix verifies identically after it (same ok, event count, and reason), and the canonical encoding of every event is byte-identical; no existing record changes verification outcome.",
+      "boundary": [
+        "Scope: all v1 .axmr logs, including logs whose floats entered via the CLI text path",
+        "Logs failing today solely from this defect are the explicit exception class, governed by AXM-002-04 (fail -> pass is the repair, not a violation)"
+      ],
+      "evidence": [
+        {
+          "ref": "spec \u00a73 injectivity argument: canonical rendering is injective on f64 bit patterns, so any log verifying under the old parser holds only floats whose old-parse bits equal the correctly-rounded bits (asserted reasoning, to be demonstrated by the fixture + real-ledger tests)",
+          "kind": "asserted",
+          "direction": "supports",
+          "source_quality": "primary"
+        },
+        {
+          "ref": "Baseline recorded 2026-10-12 pre-fix: Tekmerion Phase-5 demo study.axmr + 4 bundled copies all verify ok (5 files); fixture legacy-floats-safe.axmr verifies ok",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test"
+        }
+      ],
+      "falsification_tests": [
+        "F-FLT-3: any pre-existing log or fixture that verifies pre-fix and fails (or changes event count/reason) post-fix, or any f64 whose canonical rendering differs before/after the change."
+      ],
+      "uncertainty": "medium",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md"
+    },
+    {
+      "id": "AXM-002-04",
+      "kind": "requirement",
+      "status": "draft",
+      "text": "An untampered log whose only verification failure is this defect verifies after the fix and is appendable again \u2014 including the reproduction value 1791810119.6349843 through the append -> reopen -> verify path in Rust and via the Python bindings.",
+      "boundary": [
+        "Scope: logs whose sole defect is the float parse divergence; logs broken for any other reason must still fail (AXM-002-07)"
+      ],
+      "evidence": [
+        {
+          "ref": "Fixture legacy-floats-defect.axmr (generated with the pre-fix build) fails pre-fix with hash-mismatch at seq 1 \u2014 the before state of the repair test",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test"
+        }
+      ],
+      "falsification_tests": [
+        "F-FLT-4: post-fix, the defect fixture still fails verification, or the reproduction append->reopen->verify fails on either the Rust or bindings path."
+      ],
+      "uncertainty": "medium",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md"
+    },
+    {
+      "id": "AXM-002-05",
+      "kind": "requirement",
+      "status": "draft",
+      "text": "The v1 format and canonical encoding are unchanged by the fix: magic AXMR1 stands, canonical float rendering (shortest round-trip) is byte-identical for every f64, and the only behavioral change is decimal->f64 parsing becoming correctly rounded; no new magic version is introduced (Constitution Article V not triggered).",
+      "boundary": [
+        "Scope: crates/axiomere + crates/axiomere-py dependency configuration and docs/DESIGN.md \u00a74 clarification"
+      ],
+      "evidence": [
+        {
+          "ref": "Design (spec \u00a75): single dependency-feature change (serde_json float_roundtrip); formatter, canonical(), hash construction, and public API untouched \u2014 to be demonstrated by the bit-pattern canonical-stability test and the merge diff",
+          "kind": "asserted",
+          "direction": "supports",
+          "source_quality": "primary"
+        }
+      ],
+      "falsification_tests": [
+        "F-FLT-5: any f64 bit pattern whose canonical rendering differs pre/post fix, or any change to the magic, line format, or hash definition in the delivered diff."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md"
+    },
+    {
+      "id": "AXM-002-06",
+      "kind": "requirement",
+      "status": "draft",
+      "text": "Round-trip totality: for every finite f64, canonical format -> parse -> format is the identity through the production verify path, demonstrated by a randomized bit-pattern sweep of at least 1,000,000 values plus the characterized shape matrix (17+ significant digits, exponent forms, subnormals, signed zero, integral-valued floats, exact-tie decimals, extremal finite values).",
+      "boundary": [
+        "Non-finite values are out of scope: they never reach the file (entry points map them to null), unchanged by this fix"
+      ],
+      "evidence": [
+        {
+          "ref": "Pre-fix sweep result (593,459 / 2,000,000 failures) is the baseline the post-fix sweep must reduce to zero",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test"
+        }
+      ],
+      "falsification_tests": [
+        "F-FLT-6: a single finite f64 whose format->parse round trip through the production path is not the identity post-fix."
+      ],
+      "uncertainty": "medium",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md"
+    },
+    {
+      "id": "AXM-002-07",
+      "kind": "requirement",
+      "status": "draft",
+      "text": "Tamper detection is undiminished: a digit altered in a float payload fails verification post-fix, and all Spec 001 seeded defects (tampered payload, deleted line, forged signature, broken-log open rejection) behave identically.",
+      "boundary": [
+        "Pre-existing property, unchanged and out of scope: respelling a number to a different text of the same value (0.50 for 0.5) was verification-equivalent before this fix and remains so"
+      ],
+      "evidence": [
+        {
+          "ref": "Spec 001 seeded-defect suite (crates/axiomere/tests/integration.rs) green pre-fix; the same suite plus a new float-digit tamper test is the post-fix evidence",
+          "kind": "asserted",
+          "direction": "supports",
+          "source_quality": "primary"
+        }
+      ],
+      "falsification_tests": [
+        "F-FLT-7: any seeded defect that fails verification pre-fix and passes post-fix."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md"
+    },
+    {
+      "id": "AXM-002-08",
+      "kind": "decision",
+      "status": "supported",
+      "text": "axiomere-python needs no code or API change: its extension is this repo's crates/axiomere-py and payloads cross PyO3 as exact f64 bits; its obligations are a rebuild against the fixed core plus a regression test, recorded as a companion item (spec \u00a77) rather than executed from this repo.",
+      "boundary": [
+        "Scope: repo boundary between AXIOVEX/axiomere and AXIOVEX/axiomere-python",
+        "Until axiomere-python rebuilds, its released builds still carry the defect \u2014 stated, not hidden"
+      ],
+      "evidence": [
+        {
+          "ref": "crates/axiomere-py/src/lib.rs py_to_json: Python float -> extract::<f64>() -> Number::from_f64 \u2014 bits cross exactly, no text serialization on the payload path",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "artifact"
+        },
+        {
+          "ref": "axiomere-python src/axiomere/__init__.py: pure wrapper over _axiomere (this repo's crate); ImportError text names this repo as the extension's source",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "artifact"
+        }
+      ],
+      "falsification_tests": [
+        "F-FLT-8: a payload path in axiomere-python that serializes floats to text before the core sees them (which would make a Python-side change necessary)."
+      ],
+      "uncertainty": "low",
+      "severity": "medium",
+      "source_ref": "specs/002-float-canonicalization/spec.md"
+    }
+  ]
+}
