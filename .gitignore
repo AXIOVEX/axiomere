@@ -1,0 +1,4 @@
+target/
+.venv/
+*.axmr
+__pycache__/
