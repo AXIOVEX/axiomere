@@ -1,0 +1,716 @@
+{
+  "schema_version": "1.0",
+  "methodology_version": "1.0",
+  "project": "axiomere",
+  "phase": "after_implement",
+  "outcome": "iterate",
+  "summary": "Assessed 9 claim(s); found 10 failure mode(s); 1 claim(s) below the 0.70 confidence threshold.",
+  "created_at": "2026-10-12T05:37:45.164130Z",
+  "claims": [
+    {
+      "id": "AXM-001-01",
+      "text": "The public API contains no update, delete, remove, or redact operation; ledgers change only by appending.",
+      "kind": "requirement",
+      "status": "supported",
+      "boundary": [
+        "Scope: crates/axiomere public API + axiomere CLI",
+        "Filesystem-level deletion of whole files is outside any store's API guarantee and is what external anchoring (layer 5) addresses"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "crates/axiomere/src/lib.rs \u2014 full public API surface (append, append_snapshot, mark_dead, checkpoint, reads)",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "artifact",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        },
+        {
+          "ref": "grep of public API + docs/DESIGN.md \u00a72 (the one rule)",
+          "kind": "asserted",
+          "direction": "supports",
+          "source_quality": "primary",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-AXM-1: any public function in the crate (or the CLI) that mutates or removes a stored event."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/001-axiomere-core/spec.md",
+      "domain": "",
+      "confidence": 0.958063,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-001-01-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-001-01",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-001-02",
+      "text": "Altering, inserting, deleting, or reordering any stored event makes verification fail at the first affected sequence number with a named reason.",
+      "kind": "requirement",
+      "status": "supported",
+      "boundary": [
+        "Scope: single-file ledgers in the v1 format"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "tests/integration.rs::tampered_payload_breaks_verification, ::deleted_line_breaks_verification",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-AXM-2: a tampered, truncated, or reordered .axmr file that still verifies."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/001-axiomere-core/spec.md",
+      "domain": "",
+      "confidence": 0.9,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-001-02-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-001-02",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-001-03",
+      "text": "Snapshots are content-addressed by hash of content plus parent snapshot ID, so a record's lineage is traversable and any tampering with an ancestor invalidates the descendant addresses.",
+      "kind": "requirement",
+      "status": "supported",
+      "boundary": [
+        "Scope: snapshot events (record.snapshot)"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "tests/integration.rs::chain_verifies_and_view_folds (parent link asserted)",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        },
+        {
+          "ref": "crates/axiomere/src/lib.rs snapshot_id()",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "artifact",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-AXM-3: two different contents (or parents) yielding one snapshot ID, or a lineage that cannot be walked from the current view."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/001-axiomere-core/spec.md",
+      "domain": "",
+      "confidence": 1.0,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-001-03-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-001-03",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-001-04",
+      "text": "Withdrawal is a dead snapshot: status dead, mandatory reason, score forced to 0.0 \u2014 and the record's full history, including its death, remains readable in the audit view.",
+      "kind": "requirement",
+      "status": "supported",
+      "boundary": [
+        "Scope: mark_dead + current_view(include_dead=True)"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "tests/integration.rs::dead_is_append_only_and_scores_zero",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-AXM-4: a dead record whose earlier snapshots are unreadable, whose score is not 0.0, or that carries no reason."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/001-axiomere-core/spec.md",
+      "domain": "",
+      "confidence": 0.9,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-001-04-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-001-04",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-001-05",
+      "text": "An append signed with an actor's Ed25519 key verifies against that key; a forged or altered signature fails verification with reason signature-invalid.",
+      "kind": "requirement",
+      "status": "supported",
+      "boundary": [
+        "Scope: signature self-consistency and trusted-key-map verification in verify_events_trusted",
+        "Trust in a key itself is out-of-band (DESIGN \u00a75)"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "tests/integration.rs::signed_appends_verify_and_forged_signature_fails",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-AXM-5: a signature altered after signing that still verifies, or a valid signature that fails."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/001-axiomere-core/spec.md",
+      "domain": "",
+      "confidence": 0.9,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-001-05-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-001-05",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-001-05-NEGATION-CONFLICT-CHALLE",
+          "claim_id": "AXM-001-05",
+          "challenge": "Negation conflict challenge",
+          "breakpoint": "AXM-001-05 may contradict AXM-001-07",
+          "severity": "medium",
+          "category": "contradiction",
+          "recovery_hint": "Confirm whether the claims share a boundary and preserve both pending review.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-001-06",
+      "text": "A checkpoint appends a Merkle root over all event hashes to date, and the root recomputes independently from the stored events.",
+      "kind": "requirement",
+      "status": "supported",
+      "boundary": [
+        "Scope: checkpoint() ranges from genesis to the checkpoint event"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "tests/integration.rs::checkpoint_root_matches_recomputation",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-AXM-6: a checkpoint whose recorded root does not match recomputation over the events it claims to cover."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/001-axiomere-core/spec.md",
+      "domain": "",
+      "confidence": 0.9,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-001-06-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-001-06",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-001-07",
+      "text": "A ledger that fails verification cannot be opened for appends; the broken log remains readable as evidence only.",
+      "kind": "requirement",
+      "status": "supported",
+      "boundary": [
+        "Scope: Ledger::open append path"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "tests/integration.rs::open_rejects_a_broken_log_for_appends",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-AXM-7: successfully appending to a log whose chain is broken."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/001-axiomere-core/spec.md",
+      "domain": "",
+      "confidence": 0.9,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-001-07-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-001-07",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-001-08",
+      "text": "The .axmr v1 format is specified completely enough (magic, canonical JSON, hash definitions) for an independent implementation to verify a file byte-for-byte.",
+      "kind": "requirement",
+      "status": "partially_supported",
+      "boundary": [
+        "Scope: format specification completeness",
+        "No second implementation exists yet \u2014 this claim is partially supported until one does"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "docs/DESIGN.md \u00a74 format specification",
+          "kind": "asserted",
+          "direction": "supports",
+          "source_quality": "primary",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        },
+        {
+          "ref": "Canonical encoding shared by writer and verifier in lib.rs (canonical())",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "artifact",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-AXM-8: an independent implementation, written from DESIGN \u00a74 alone, failing to verify a conforming file (or verifying a non-conforming one)."
+      ],
+      "uncertainty": "medium",
+      "severity": "high",
+      "source_ref": "specs/001-axiomere-core/spec.md",
+      "domain": "",
+      "confidence": 0.958063,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-001-08-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-001-08",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-001-09",
+      "text": "Checkpoint roots produced by this crate will be depositable with an external anchor (DOI repository, RFC 3161 TSA, or transparency log) without format changes, making history rewriting detectable by third parties.",
+      "kind": "prediction",
+      "status": "draft",
+      "boundary": [
+        "Scope: layer 5 (DESIGN \u00a73/\u00a75) \u2014 specified, transport not implemented in v0.1"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "docs/DESIGN.md \u00a73 layer 5 + \u00a75 key/anchor discussion",
+          "kind": "asserted",
+          "direction": "supports",
+          "source_quality": "primary",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-AXM-9: an anchoring integration that requires changing the v1 event or checkpoint format."
+      ],
+      "uncertainty": "high",
+      "severity": "high",
+      "source_ref": "specs/001-axiomere-core/spec.md",
+      "domain": "",
+      "confidence": 0.480625,
+      "confidence_band": "medium",
+      "failures": [
+        {
+          "id": "AEE-AXM-001-09-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-001-09",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "scores": {
+    "AXM-001-01": {
+      "claim_id": "AXM-001-01",
+      "direct_score": 0.958063,
+      "propagated_score": 0.958063,
+      "band": "high",
+      "components": {
+        "evidence": 0.92375,
+        "independence": 1.0,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": []
+    },
+    "AXM-001-02": {
+      "claim_id": "AXM-001-02",
+      "direct_score": 0.9,
+      "propagated_score": 0.9,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 0.5,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": [
+        "Fewer than two independent supporting sources"
+      ]
+    },
+    "AXM-001-03": {
+      "claim_id": "AXM-001-03",
+      "direct_score": 1.0,
+      "propagated_score": 1.0,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 1.0,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": []
+    },
+    "AXM-001-04": {
+      "claim_id": "AXM-001-04",
+      "direct_score": 0.9,
+      "propagated_score": 0.9,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 0.5,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": [
+        "Fewer than two independent supporting sources"
+      ]
+    },
+    "AXM-001-05": {
+      "claim_id": "AXM-001-05",
+      "direct_score": 0.9,
+      "propagated_score": 0.9,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 0.5,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": [
+        "Fewer than two independent supporting sources"
+      ]
+    },
+    "AXM-001-06": {
+      "claim_id": "AXM-001-06",
+      "direct_score": 0.9,
+      "propagated_score": 0.9,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 0.5,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": [
+        "Fewer than two independent supporting sources"
+      ]
+    },
+    "AXM-001-07": {
+      "claim_id": "AXM-001-07",
+      "direct_score": 0.9,
+      "propagated_score": 0.9,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 0.5,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": [
+        "Fewer than two independent supporting sources"
+      ]
+    },
+    "AXM-001-08": {
+      "claim_id": "AXM-001-08",
+      "direct_score": 0.958063,
+      "propagated_score": 0.958063,
+      "band": "high",
+      "components": {
+        "evidence": 0.92375,
+        "independence": 1.0,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": []
+    },
+    "AXM-001-09": {
+      "claim_id": "AXM-001-09",
+      "direct_score": 0.480625,
+      "propagated_score": 0.480625,
+      "band": "medium",
+      "components": {
+        "evidence": 0.2375,
+        "independence": 0.5,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": [
+        "No observed supporting evidence",
+        "Fewer than two independent supporting sources"
+      ]
+    }
+  },
+  "recoveries": [
+    {
+      "failure_id": "AEE-AXM-001-01-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-001-01",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-001-02-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-001-02",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-001-03-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-001-03",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-001-04-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-001-04",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-001-05-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-001-05",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-001-05-NEGATION-CONFLICT-CHALLE",
+      "claim_id": "AXM-001-05",
+      "strategy": "resolve_contradiction",
+      "action": "Confirm whether the claims share a boundary and preserve both pending review.",
+      "priority": 3,
+      "verification": "Both positions remain recorded; discriminating evidence resolves or scopes them."
+    },
+    {
+      "failure_id": "AEE-AXM-001-06-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-001-06",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-001-07-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-001-07",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-001-08-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-001-08",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-001-09-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-001-09",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    }
+  ],
+  "metadata": {
+    "threshold": 0.7,
+    "input": "specs/001-axiomere-core/aee-claims.json"
+  }
+}
