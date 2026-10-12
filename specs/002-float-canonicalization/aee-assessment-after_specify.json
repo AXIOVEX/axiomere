@@ -1,0 +1,845 @@
+{
+  "schema_version": "1.0",
+  "methodology_version": "1.0",
+  "project": "axiomere",
+  "phase": "after_specify",
+  "outcome": "iterate",
+  "summary": "Assessed 8 claim(s); found 19 failure mode(s); 2 claim(s) below the 0.70 confidence threshold.",
+  "created_at": "2026-10-12T13:17:03.751295Z",
+  "claims": [
+    {
+      "id": "AXM-002-01",
+      "text": "The float verification defect is reader-side: serde_json's default decimal-to-f64 parsing is not correctly rounded, so for a class of payload floats the verifier recomputes a canonical body from bits 1 ULP away from the bits hashed at append, and reports hash-mismatch on an untampered log.",
+      "kind": "observation",
+      "status": "supported",
+      "boundary": [
+        "Scope: verification path (read_events + verify_events) in crates/axiomere and its bindings",
+        "The writer (canonical rendering) is not implicated: the stored text is the correct shortest form of the appended value"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "Reproduction 2026-10-12: append {\"ts_like\": 1791810119.6349843} via Python package -> verify() false in-session, Database.open raises 'verification failed at seq 1: hash-mismatch'; frozen as crates/axiomere/tests/fixtures/legacy-floats-defect.axmr",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        },
+        {
+          "ref": "Primitive probe (probe results recorded in spec \u00a72): serde_json parses text 1791810119.6349843 to bits 0x41dab33691e8a396; correctly-rounded parse (Python) gives 0x41dab33691e8a395, whose serde_json rendering is the same text",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "artifact",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        },
+        {
+          "ref": "Tekmerion finding, src/tekmerion/platform/ledger.py payload-discipline note (2026-10-12): same failure observed downstream with the same value",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "primary",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-FLT-1: exhibit the failure with a correctly-rounded parser substituted for serde_json's default while holding the stored bytes fixed \u2014 if it still fails, the defect is not reader-side parsing."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md",
+      "domain": "",
+      "confidence": 1.0,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-002-01-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-002-01",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-01-NEGATION-CONFLICT-CHALLE",
+          "claim_id": "AXM-002-01",
+          "challenge": "Negation conflict challenge",
+          "breakpoint": "AXM-002-01 may contradict AXM-002-02",
+          "severity": "medium",
+          "category": "contradiction",
+          "recovery_hint": "Confirm whether the claims share a boundary and preserve both pending review.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-01-NEGATION-CONFLICT-CHALLE-2",
+          "claim_id": "AXM-002-01",
+          "challenge": "Negation conflict challenge",
+          "breakpoint": "AXM-002-01 may contradict AXM-002-04",
+          "severity": "medium",
+          "category": "contradiction",
+          "recovery_hint": "Confirm whether the claims share a boundary and preserve both pending review.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-01-NEGATION-CONFLICT-CHALLE-3",
+          "claim_id": "AXM-002-01",
+          "challenge": "Negation conflict challenge",
+          "breakpoint": "AXM-002-01 may contradict AXM-002-06",
+          "severity": "medium",
+          "category": "contradiction",
+          "recovery_hint": "Confirm whether the claims share a boundary and preserve both pending review.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-01-NEGATION-CONFLICT-CHALLE-4",
+          "claim_id": "AXM-002-01",
+          "challenge": "Negation conflict challenge",
+          "breakpoint": "AXM-002-01 may contradict AXM-002-07",
+          "severity": "medium",
+          "category": "contradiction",
+          "recovery_hint": "Confirm whether the claims share a boundary and preserve both pending review.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-002-02",
+      "text": "The trigger class is payload floats whose canonical decimal needs at least 17 significant digits (including exponent forms); the parse error is always exactly 1 ULP; decimals of at most 16 significant digits are unaffected.",
+      "kind": "observation",
+      "status": "supported",
+      "boundary": [
+        "Rates measured on random bit patterns and timestamp-shaped decimals; the class boundary (17 significant digits) is the invariant, the percentages are sample statistics"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "Bit-pattern sweep: 593,459 / 2,000,000 random finite f64 fail format->parse round trip under the default parser (spec \u00a72)",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        },
+        {
+          "ref": "Shape sweep: timestamp-shaped decimals (10 integer digits + k fraction digits), 200,000 trials per k: 0 unstable at k<=6 (<=16 significant digits), ~5% at k=7 (17 significant), ~12% at k>=9; all mismatches +-1 ULP",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-FLT-2: a float with a canonical form of at most 16 significant digits that fails the pre-fix round trip, or a pre-fix parse error of 2+ ULP."
+      ],
+      "uncertainty": "low",
+      "severity": "medium",
+      "source_ref": "specs/002-float-canonicalization/spec.md",
+      "domain": "",
+      "confidence": 1.0,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-002-02-PRECISION-CHALLENGE",
+          "claim_id": "AXM-002-02",
+          "challenge": "Precision challenge",
+          "breakpoint": "Claim contains an undefined or non-measurable term",
+          "severity": "medium",
+          "category": "ambiguous_requirement",
+          "recovery_hint": "Replace vague language with a threshold, observable, or decision rule.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-02-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-002-02",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-02-NEGATION-CONFLICT-CHALLE",
+          "claim_id": "AXM-002-02",
+          "challenge": "Negation conflict challenge",
+          "breakpoint": "AXM-002-02 may contradict AXM-002-05",
+          "severity": "medium",
+          "category": "contradiction",
+          "recovery_hint": "Confirm whether the claims share a boundary and preserve both pending review.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-002-03",
+      "text": "VALIDITY PRESERVATION (hard constraint): every .axmr log that verifies before the fix verifies identically after it (same ok, event count, and reason), and the canonical encoding of every event is byte-identical; no existing record changes verification outcome.",
+      "kind": "requirement",
+      "status": "draft",
+      "boundary": [
+        "Scope: all v1 .axmr logs, including logs whose floats entered via the CLI text path",
+        "Logs failing today solely from this defect are the explicit exception class, governed by AXM-002-04 (fail -> pass is the repair, not a violation)"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "spec \u00a73 injectivity argument: canonical rendering is injective on f64 bit patterns, so any log verifying under the old parser holds only floats whose old-parse bits equal the correctly-rounded bits (asserted reasoning, to be demonstrated by the fixture + real-ledger tests)",
+          "kind": "asserted",
+          "direction": "supports",
+          "source_quality": "primary",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        },
+        {
+          "ref": "Baseline recorded 2026-10-12 pre-fix: Tekmerion Phase-5 demo study.axmr + 4 bundled copies all verify ok (5 files); fixture legacy-floats-safe.axmr verifies ok",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-FLT-3: any pre-existing log or fixture that verifies pre-fix and fails (or changes event count/reason) post-fix, or any f64 whose canonical rendering differs before/after the change."
+      ],
+      "uncertainty": "medium",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md",
+      "domain": "",
+      "confidence": 1.0,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-002-03-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-002-03",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-03-NEGATION-CONFLICT-CHALLE",
+          "claim_id": "AXM-002-03",
+          "challenge": "Negation conflict challenge",
+          "breakpoint": "AXM-002-03 may contradict AXM-002-04",
+          "severity": "medium",
+          "category": "contradiction",
+          "recovery_hint": "Confirm whether the claims share a boundary and preserve both pending review.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-03-NEGATION-CONFLICT-CHALLE-2",
+          "claim_id": "AXM-002-03",
+          "challenge": "Negation conflict challenge",
+          "breakpoint": "AXM-002-03 may contradict AXM-002-07",
+          "severity": "medium",
+          "category": "contradiction",
+          "recovery_hint": "Confirm whether the claims share a boundary and preserve both pending review.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-002-04",
+      "text": "An untampered log whose only verification failure is this defect verifies after the fix and is appendable again \u2014 including the reproduction value 1791810119.6349843 through the append -> reopen -> verify path in Rust and via the Python bindings.",
+      "kind": "requirement",
+      "status": "draft",
+      "boundary": [
+        "Scope: logs whose sole defect is the float parse divergence; logs broken for any other reason must still fail (AXM-002-07)"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "Fixture legacy-floats-defect.axmr (generated with the pre-fix build) fails pre-fix with hash-mismatch at seq 1 \u2014 the before state of the repair test",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-FLT-4: post-fix, the defect fixture still fails verification, or the reproduction append->reopen->verify fails on either the Rust or bindings path."
+      ],
+      "uncertainty": "medium",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md",
+      "domain": "",
+      "confidence": 0.9,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-002-04-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-002-04",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-002-05",
+      "text": "The v1 format and canonical encoding are unchanged by the fix: magic AXMR1 stands, canonical float rendering (shortest round-trip) is byte-identical for every f64, and the only behavioral change is decimal->f64 parsing becoming correctly rounded; no new magic version is introduced (Constitution Article V not triggered).",
+      "kind": "requirement",
+      "status": "draft",
+      "boundary": [
+        "Scope: crates/axiomere + crates/axiomere-py dependency configuration and docs/DESIGN.md \u00a74 clarification"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "Design (spec \u00a75): single dependency-feature change (serde_json float_roundtrip); formatter, canonical(), hash construction, and public API untouched \u2014 to be demonstrated by the bit-pattern canonical-stability test and the merge diff",
+          "kind": "asserted",
+          "direction": "supports",
+          "source_quality": "primary",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-FLT-5: any f64 bit pattern whose canonical rendering differs pre/post fix, or any change to the magic, line format, or hash definition in the delivered diff."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md",
+      "domain": "",
+      "confidence": 0.480625,
+      "confidence_band": "medium",
+      "failures": [
+        {
+          "id": "AEE-AXM-002-05-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-002-05",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-05-NEGATION-CONFLICT-CHALLE",
+          "claim_id": "AXM-002-05",
+          "challenge": "Negation conflict challenge",
+          "breakpoint": "AXM-002-05 may contradict AXM-002-06",
+          "severity": "medium",
+          "category": "contradiction",
+          "recovery_hint": "Confirm whether the claims share a boundary and preserve both pending review.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-002-06",
+      "text": "Round-trip totality: for every finite f64, canonical format -> parse -> format is the identity through the production verify path, demonstrated by a randomized bit-pattern sweep of at least 1,000,000 values plus the characterized shape matrix (17+ significant digits, exponent forms, subnormals, signed zero, integral-valued floats, exact-tie decimals, extremal finite values).",
+      "kind": "requirement",
+      "status": "draft",
+      "boundary": [
+        "Non-finite values are out of scope: they never reach the file (entry points map them to null), unchanged by this fix"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "Pre-fix sweep result (593,459 / 2,000,000 failures) is the baseline the post-fix sweep must reduce to zero",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "test",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-FLT-6: a single finite f64 whose format->parse round trip through the production path is not the identity post-fix."
+      ],
+      "uncertainty": "medium",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md",
+      "domain": "",
+      "confidence": 0.9,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-002-06-PRECISION-CHALLENGE",
+          "claim_id": "AXM-002-06",
+          "challenge": "Precision challenge",
+          "breakpoint": "Claim contains an undefined or non-measurable term",
+          "severity": "medium",
+          "category": "ambiguous_requirement",
+          "recovery_hint": "Replace vague language with a threshold, observable, or decision rule.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-06-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-002-06",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        },
+        {
+          "id": "AEE-AXM-002-06-NEGATION-CONFLICT-CHALLE",
+          "claim_id": "AXM-002-06",
+          "challenge": "Negation conflict challenge",
+          "breakpoint": "AXM-002-06 may contradict AXM-002-08",
+          "severity": "medium",
+          "category": "contradiction",
+          "recovery_hint": "Confirm whether the claims share a boundary and preserve both pending review.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-002-07",
+      "text": "Tamper detection is undiminished: a digit altered in a float payload fails verification post-fix, and all Spec 001 seeded defects (tampered payload, deleted line, forged signature, broken-log open rejection) behave identically.",
+      "kind": "requirement",
+      "status": "draft",
+      "boundary": [
+        "Pre-existing property, unchanged and out of scope: respelling a number to a different text of the same value (0.50 for 0.5) was verification-equivalent before this fix and remains so"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "Spec 001 seeded-defect suite (crates/axiomere/tests/integration.rs) green pre-fix; the same suite plus a new float-digit tamper test is the post-fix evidence",
+          "kind": "asserted",
+          "direction": "supports",
+          "source_quality": "primary",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-FLT-7: any seeded defect that fails verification pre-fix and passes post-fix."
+      ],
+      "uncertainty": "low",
+      "severity": "high",
+      "source_ref": "specs/002-float-canonicalization/spec.md",
+      "domain": "",
+      "confidence": 0.480625,
+      "confidence_band": "medium",
+      "failures": [
+        {
+          "id": "AEE-AXM-002-07-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-002-07",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    },
+    {
+      "id": "AXM-002-08",
+      "text": "axiomere-python needs no code or API change: its extension is this repo's crates/axiomere-py and payloads cross PyO3 as exact f64 bits; its obligations are a rebuild against the fixed core plus a regression test, recorded as a companion item (spec \u00a77) rather than executed from this repo.",
+      "kind": "decision",
+      "status": "supported",
+      "boundary": [
+        "Scope: repo boundary between AXIOVEX/axiomere and AXIOVEX/axiomere-python",
+        "Until axiomere-python rebuilds, its released builds still carry the defect \u2014 stated, not hidden"
+      ],
+      "depends_on": [],
+      "conflicts_with": [],
+      "evidence": [
+        {
+          "ref": "crates/axiomere-py/src/lib.rs py_to_json: Python float -> extract::<f64>() -> Number::from_f64 \u2014 bits cross exactly, no text serialization on the payload path",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "artifact",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        },
+        {
+          "ref": "axiomere-python src/axiomere/__init__.py: pure wrapper over _axiomere (this repo's crate); ImportError text names this repo as the extension's source",
+          "kind": "observed",
+          "direction": "supports",
+          "source_quality": "artifact",
+          "description": "",
+          "source_id": "",
+          "independent_of": [],
+          "observed_at": null,
+          "content_hash": null
+        }
+      ],
+      "assumptions": [],
+      "alternatives": [],
+      "falsification_tests": [
+        "F-FLT-8: a payload path in axiomere-python that serializes floats to text before the core sees them (which would make a Python-side change necessary)."
+      ],
+      "uncertainty": "low",
+      "severity": "medium",
+      "source_ref": "specs/002-float-canonicalization/spec.md",
+      "domain": "",
+      "confidence": 0.9945,
+      "confidence_band": "high",
+      "failures": [
+        {
+          "id": "AEE-AXM-002-08-IRREDUCIBILITY-CHALLENGE",
+          "claim_id": "AXM-002-08",
+          "challenge": "Irreducibility challenge",
+          "breakpoint": "Claim may contain multiple independently falsifiable propositions",
+          "severity": "medium",
+          "category": "coverage_gap",
+          "recovery_hint": "Split the claim into atomic propositions and link them explicitly.",
+          "resolved": false
+        }
+      ],
+      "metadata": {}
+    }
+  ],
+  "scores": {
+    "AXM-002-01": {
+      "claim_id": "AXM-002-01",
+      "direct_score": 1.0,
+      "propagated_score": 1.0,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 1.0,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": []
+    },
+    "AXM-002-02": {
+      "claim_id": "AXM-002-02",
+      "direct_score": 1.0,
+      "propagated_score": 1.0,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 1.0,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": []
+    },
+    "AXM-002-03": {
+      "claim_id": "AXM-002-03",
+      "direct_score": 1.0,
+      "propagated_score": 1.0,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 1.0,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": []
+    },
+    "AXM-002-04": {
+      "claim_id": "AXM-002-04",
+      "direct_score": 0.9,
+      "propagated_score": 0.9,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 0.5,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": [
+        "Fewer than two independent supporting sources"
+      ]
+    },
+    "AXM-002-05": {
+      "claim_id": "AXM-002-05",
+      "direct_score": 0.480625,
+      "propagated_score": 0.480625,
+      "band": "medium",
+      "components": {
+        "evidence": 0.2375,
+        "independence": 0.5,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": [
+        "No observed supporting evidence",
+        "Fewer than two independent supporting sources"
+      ]
+    },
+    "AXM-002-06": {
+      "claim_id": "AXM-002-06",
+      "direct_score": 0.9,
+      "propagated_score": 0.9,
+      "band": "high",
+      "components": {
+        "evidence": 1.0,
+        "independence": 0.5,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": [
+        "Fewer than two independent supporting sources"
+      ]
+    },
+    "AXM-002-07": {
+      "claim_id": "AXM-002-07",
+      "direct_score": 0.480625,
+      "propagated_score": 0.480625,
+      "band": "medium",
+      "components": {
+        "evidence": 0.2375,
+        "independence": 0.5,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": [
+        "No observed supporting evidence",
+        "Fewer than two independent supporting sources"
+      ]
+    },
+    "AXM-002-08": {
+      "claim_id": "AXM-002-08",
+      "direct_score": 0.9945,
+      "propagated_score": 0.9945,
+      "band": "high",
+      "components": {
+        "evidence": 0.99,
+        "independence": 1.0,
+        "falsifiability": 1.0,
+        "boundary": 1.0,
+        "contradiction_penalty": 0
+      },
+      "notes": []
+    }
+  },
+  "recoveries": [
+    {
+      "failure_id": "AEE-AXM-002-01-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-002-01",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-002-01-NEGATION-CONFLICT-CHALLE",
+      "claim_id": "AXM-002-01",
+      "strategy": "resolve_contradiction",
+      "action": "Confirm whether the claims share a boundary and preserve both pending review.",
+      "priority": 3,
+      "verification": "Both positions remain recorded; discriminating evidence resolves or scopes them."
+    },
+    {
+      "failure_id": "AEE-AXM-002-01-NEGATION-CONFLICT-CHALLE-2",
+      "claim_id": "AXM-002-01",
+      "strategy": "resolve_contradiction",
+      "action": "Confirm whether the claims share a boundary and preserve both pending review.",
+      "priority": 3,
+      "verification": "Both positions remain recorded; discriminating evidence resolves or scopes them."
+    },
+    {
+      "failure_id": "AEE-AXM-002-01-NEGATION-CONFLICT-CHALLE-3",
+      "claim_id": "AXM-002-01",
+      "strategy": "resolve_contradiction",
+      "action": "Confirm whether the claims share a boundary and preserve both pending review.",
+      "priority": 3,
+      "verification": "Both positions remain recorded; discriminating evidence resolves or scopes them."
+    },
+    {
+      "failure_id": "AEE-AXM-002-01-NEGATION-CONFLICT-CHALLE-4",
+      "claim_id": "AXM-002-01",
+      "strategy": "resolve_contradiction",
+      "action": "Confirm whether the claims share a boundary and preserve both pending review.",
+      "priority": 3,
+      "verification": "Both positions remain recorded; discriminating evidence resolves or scopes them."
+    },
+    {
+      "failure_id": "AEE-AXM-002-02-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-002-02",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-002-02-NEGATION-CONFLICT-CHALLE",
+      "claim_id": "AXM-002-02",
+      "strategy": "resolve_contradiction",
+      "action": "Confirm whether the claims share a boundary and preserve both pending review.",
+      "priority": 3,
+      "verification": "Both positions remain recorded; discriminating evidence resolves or scopes them."
+    },
+    {
+      "failure_id": "AEE-AXM-002-02-PRECISION-CHALLENGE",
+      "claim_id": "AXM-002-02",
+      "strategy": "clarify",
+      "action": "Replace vague language with a threshold, observable, or decision rule.",
+      "priority": 3,
+      "verification": "The revised claim contains a measurable observable or decision rule."
+    },
+    {
+      "failure_id": "AEE-AXM-002-03-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-002-03",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-002-03-NEGATION-CONFLICT-CHALLE",
+      "claim_id": "AXM-002-03",
+      "strategy": "resolve_contradiction",
+      "action": "Confirm whether the claims share a boundary and preserve both pending review.",
+      "priority": 3,
+      "verification": "Both positions remain recorded; discriminating evidence resolves or scopes them."
+    },
+    {
+      "failure_id": "AEE-AXM-002-03-NEGATION-CONFLICT-CHALLE-2",
+      "claim_id": "AXM-002-03",
+      "strategy": "resolve_contradiction",
+      "action": "Confirm whether the claims share a boundary and preserve both pending review.",
+      "priority": 3,
+      "verification": "Both positions remain recorded; discriminating evidence resolves or scopes them."
+    },
+    {
+      "failure_id": "AEE-AXM-002-04-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-002-04",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-002-05-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-002-05",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-002-05-NEGATION-CONFLICT-CHALLE",
+      "claim_id": "AXM-002-05",
+      "strategy": "resolve_contradiction",
+      "action": "Confirm whether the claims share a boundary and preserve both pending review.",
+      "priority": 3,
+      "verification": "Both positions remain recorded; discriminating evidence resolves or scopes them."
+    },
+    {
+      "failure_id": "AEE-AXM-002-06-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-002-06",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-002-06-NEGATION-CONFLICT-CHALLE",
+      "claim_id": "AXM-002-06",
+      "strategy": "resolve_contradiction",
+      "action": "Confirm whether the claims share a boundary and preserve both pending review.",
+      "priority": 3,
+      "verification": "Both positions remain recorded; discriminating evidence resolves or scopes them."
+    },
+    {
+      "failure_id": "AEE-AXM-002-06-PRECISION-CHALLENGE",
+      "claim_id": "AXM-002-06",
+      "strategy": "clarify",
+      "action": "Replace vague language with a threshold, observable, or decision rule.",
+      "priority": 3,
+      "verification": "The revised claim contains a measurable observable or decision rule."
+    },
+    {
+      "failure_id": "AEE-AXM-002-07-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-002-07",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    },
+    {
+      "failure_id": "AEE-AXM-002-08-IRREDUCIBILITY-CHALLENGE",
+      "claim_id": "AXM-002-08",
+      "strategy": "decompose",
+      "action": "Split the claim into atomic propositions and link them explicitly.",
+      "priority": 3,
+      "verification": "Every resulting claim contains one independently falsifiable proposition."
+    }
+  ],
+  "metadata": {
+    "threshold": 0.7,
+    "input": "specs/002-float-canonicalization/aee-claims.json"
+  }
+}
