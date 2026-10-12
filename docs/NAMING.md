@@ -17,7 +17,7 @@
 
 Rejected on evidence: `axiomata` (PyPI package exists; 23 GitHub repos), `axioma` (PyPI exists; ~1,044 GitHub repos), `axiomdb` (~10 repos, plus Axiom the observability company crowds the whole "axiom" space), `axiomark` (7 repos), `axiomvault` (8 repos), `axiomledger` / `axiombase` / `axiomseal` / `axiomproof` (existing repos each, and generic enough to collide conceptually), `axiomstore` / `axiomchain` (registries free, but purely descriptive compounds in a crowded trademark neighborhood — a coinage is defensible in a way a description is not).
 
-**Category language:** Axiomere is a **truth ledger**. "Database" is retained only as a plain descriptor (people search for it); it is not the category claim — a database's defining verbs include update and delete, and Axiomere's defining property is that those verbs do not exist.
+**Category language (ratified by the owner, 2026-10-11):** Axiomere is a **truth ledger**. "Database" is retained only as a plain descriptor (people search for it); it is not the category claim — a database's defining verbs include update and delete, and Axiomere's defining property is that those verbs do not exist.
 
 ## The file extension: **`.axmr`**
 
