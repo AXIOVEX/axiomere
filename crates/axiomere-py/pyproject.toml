@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.5"]
+build-backend = "maturin"
+
+[project]
+name = "axiomere-py"
+version = "0.1.0"
+description = "Native PyO3 extension for Axiomere (builds the `_axiomere` module). The user-facing Python API is AXIOVEX/axiomere-python."
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+[tool.maturin]
+module-name = "_axiomere"
+bindings = "pyo3"
