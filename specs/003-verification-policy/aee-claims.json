@@ -1,0 +1,478 @@
+{
+  "claims": [
+    {
+      "boundary": [
+        "Scope: crates/axiomere verify_events / verify_events_trusted / read_events, crates/axiomere-py (PyLedger.verify, verify_file), crates/axiomere/src/bin/axiomere.rs verify",
+        "The hash chain itself is not implicated: every naive surgery probe (delete, swap, duplicate, splice, edit, replay) is caught at a named seq with a named reason (RT-B held result H-1); the defect class is completeness of checking, not the chain"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "Red Team B findings, 2026-10-13 (~/workspace/redteam-2026-10-13/rt-b/FINDINGS.md): RTB-01..RTB-06, RTB-11, RTB-13 — 13 probe-verified findings, 1 critical / 5 high; headline: 'verification checks only what is present, never what should be present'",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "crates/axiomere/src/lib.rs verify_events_trusted: the trusted-map lookup falls back to the event's embedded signer key (.unwrap_or(signer_hex)) when the actor is absent from the map; no branch inspects checkpoint payloads, snapshot payloads, or signature presence",
+          "source_quality": "artifact"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "Engagement synthesis: ~/workspace/your_files/2026-10-13-red-team-axiovex-research-engine.md, Critical findings 1 and 4 (the same root cause independently demonstrated at the Tekmerion platform layer: unsigned appends through the library pass verify())",
+          "source_quality": "primary"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-1: exhibit one v0.1.0 shipped surface (core verify_events, trusted mode, bindings, or CLI) that fails any of: the RTB-01 root transplant, an RTB-02 signature strip, an RTB-03 unsigned append into a signed ledger, or an RTB-04 unmapped-actor append — if a shipped surface already rejects one of these, the presence-only characterization is wrong for that case and this claim's scope narrows accordingly."
+      ],
+      "id": "AXM-003-01",
+      "kind": "observation",
+      "severity": "high",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "Verification in v0.1.0 is presence-only: verify_events checks the internal consistency of what is present in a ledger (sequence, links, hashes, and the validity of signatures that exist) and never checks that what should be present is there — signatures are not required to exist, checkpoint roots are read from payloads and never recomputed, snapshot lineage is asserted and never validated, and the one mode that establishes identity (the trusted-key map) silently falls back to self-consistency for unmapped actors and is unreachable from the Python bindings and the CLI.",
+      "uncertainty": "low"
+    },
+    {
+      "boundary": [
+        "Scope: verify_events / verify_events_trusted in crates/axiomere, and every surface built on them (Ledger::verify, Ledger::open, bindings verify/verify_file, CLI verify)",
+        "The Merkle construction itself is unchanged (DESIGN §3 layer 4; merkle_root over hex hash strings, odd element duplicated, empty set = SHA-256 of the empty string) — this claim adds recomputation of an existing commitment, not a new commitment scheme",
+        "A checkpoint whose payload lacks a well-formed merkle_root / upto_seq fails as malformed, at its seq"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-01 (CRITICAL, DEMONSTRATED): forged ledger with rewritten history passes verify() 5/5 signatures and matches the externally anchored root because the victim's root was transplanted into the forged checkpoint payload; only the red team's out-of-band harness recomputation exposed it (claimed=e1858626…, recomputed=f16fb2bf…, match=false). Probes: rt-b/probes/p01_genesis_recompute.py, p01b_anchor_transplant.py; corpus: forged-anchor.axmr, forged-anchor2.axmr",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "crates/axiomere/src/lib.rs: Ledger::checkpoint computes merkle_root over the hashes of all events written so far and stores it in the payload; verify_events never reads checkpoint payloads — the write side commits exactly what the read side must recompute",
+          "source_quality": "artifact"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-2: re-run rt-b/probes/p01b_anchor_transplant.py against the post-fix build — the transplanted-root forgery (corpus forged-anchor.axmr) must FAIL verification with the checkpoint named; and a control case: a checkpoint payload whose root is edited and the event re-signed with the ledger's own key must still fail, since recomputation does not consult the payload."
+      ],
+      "id": "AXM-003-02",
+      "kind": "requirement",
+      "severity": "high",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "Verification recomputes every checkpoint event's Merkle root over the hashes of the events it closes (seq <= the checkpoint payload's upto_seq, i.e. the events preceding the checkpoint) and fails verification on any mismatch between the recomputed root and the root the payload claims, with a named reason (checkpoint-root-mismatch) at the checkpoint's seq. Consumers therefore compare anchored roots against recomputed roots, never against payload claims.",
+      "uncertainty": "low"
+    },
+    {
+      "boundary": [
+        "Scope: the default verification policy of verify_events and all shipped surfaces; the trusted-map mode (AXM-003-04) is stricter and subsumes this policy for actors under trust",
+        "Presence is judged per event inside one ledger; the policy does not require signatures in ledgers that never carried them (that requirement belongs to consumers, via AXM-003-15)",
+        "Half-stripped events (sig without signer, signer without sig) count as unsigned"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-02 (HIGH, DEMONSTRATED): stripping sig+signer, sig only, or signer only from every event of a signed ledger passes verification in self-consistency AND trusted-map modes (sig_checked=0, sig_failed=0), because sig/signer are outside the hashed body and absent signatures are never missed. Probe: rt-b/probes/p02_sig_strip.py; corpus: strip-both.axmr, strip-sig.axmr, strip-signer.axmr",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-03 (HIGH, DEMONSTRATED): opening a fully signed ledger without a seed and appending two unsigned events (one overwriting a claim's text) yields verify ok=True with signatures_checked unchanged at 6 — the unsigned events are silently uncounted and win the current view. Probe: rt-b/probes/p03_unsigned_append.py; corpus: unsigned-append.axmr",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "Team C probe p08 (Tekmerion platform layer, same root cause): the platform service reopens tenant ledgers seedless and forged unsigned appends (role grants, hold releases) pass verify() and standalone audit-export verification",
+          "source_quality": "test"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-3: re-run rt-b/probes/p02_sig_strip.py and p03_unsigned_append.py against the post-fix build — all three strip variants and the unsigned-append corpus file must FAIL verification with the unsigned seqs named; and a wholly unsigned ledger must still verify with unsigned_events reporting every seq (policy does not overreach)."
+      ],
+      "id": "AXM-003-03",
+      "kind": "requirement",
+      "severity": "high",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "Verification enforces a signature-presence policy: in a ledger that carries at least one signed event, every event must carry both signer and sig, and verification fails — with the unsigned events' seqs named in the result — when any event lacks either field, whether the signature was stripped after the fact or the event was appended unsigned. A wholly unsigned ledger still verifies in the default mode, but its result reports signatures_checked = 0 and unsigned_events = all, so 'unsigned' is a visible state, never a silent downgrade of a signed ledger.",
+      "uncertainty": "low"
+    },
+    {
+      "boundary": [
+        "Scope: verify_events_trusted in crates/axiomere and its exposures under AXM-003-05",
+        "An unsigned event under trusted mode is governed by AXM-003-03's presence policy plus the map: its actor cannot be identity-checked, so in trusted mode an unsigned event in a ledger whose map is supplied fails unless the caller explicitly selects the legacy presence policy",
+        "Key rotation (DESIGN §5) is unaffected: a map may carry several historical keys per actor only if the API represents them; a single-key map failing a legitimately rotated ledger is a caller error the result must make legible, not a silent pass"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-04 (HIGH, DEMONSTRATED): the identical attacker append caught as signer-key-mismatch under a mapped actor name passes trusted verification ok=true under a fresh actor name ('mallory'), because verify_events_trusted falls back to trusting the key embedded in the event for unmapped actors. Probe: rt-b/probes/p04_attacker_append.py; corpus: atk-as-mallory.axmr, atk-as-victim.axmr",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RT-B held result H-2: attacker key under a MAPPED actor name is caught (signer-key-mismatch at the appended seq) — the strictness this claim extends to all actors already works where the map reaches",
+          "source_quality": "test"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-4: re-run rt-b/probes/p04_attacker_append.py against the post-fix build — the 'mallory' append (corpus atk-as-mallory.axmr) must FAIL trusted verification with mallory named in untrusted_actors, and the mapped-name control (atk-as-victim.axmr) must still fail as signer-key-mismatch (H-2 preserved)."
+      ],
+      "id": "AXM-003-04",
+      "kind": "requirement",
+      "severity": "high",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "Trusted-key-map verification is strict and total: when a trusted map is supplied, an event whose actor is absent from the map FAILS verification (no fallback to the event's embedded key), the failure names the actor and seq, and the Verification result carries an untrusted_actors list naming every actor that signed events without being in the map. Identity mode constrains every actor in the ledger, not only the ones the caller happened to enumerate.",
+      "uncertainty": "low"
+    },
+    {
+      "boundary": [
+        "Scope: crates/axiomere/src/bin/axiomere.rs, crates/axiomere-py/src/lib.rs; the axiomere-python wrapper's idiomatic surface is a companion obligation (AXM-003-15)",
+        "Passing an empty map is a caller error distinct from passing no map: an empty map trusts nobody, so every signed actor is untrusted — the surfaces must not conflate None with {}"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-05 (MEDIUM, DEMONSTRATED): verify_events_trusted exists only in the Rust core library; grep across axiomere-py/src/lib.rs, bin/axiomere.rs and the Python wrapper finds no exposure — Tekmerion, a Python consumer, cannot perform identity verification at all, and the red team had to write its own Rust harness (rt-b/probes/trusted-verify/) to exercise the mode",
+          "source_quality": "test"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-5: from a clean Python process using only the shipped bindings, verify corpus atk-as-mallory.axmr with a trusted map naming the victim actor — it must fail with the untrusted actor reported, through both the ledger object and verify_file; repeat the equivalent check through the CLI's trusted option. If either surface cannot express the check, the claim fails."
+      ],
+      "id": "AXM-003-05",
+      "kind": "requirement",
+      "severity": "medium",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "Trusted-map verification is reachable from every surface a consumer actually uses: the Rust CLI gains a trusted-map option for verify (e.g. --trusted actor=pubkey_hex, repeatable, or a map file), and the PyO3 bindings expose verify(trusted={actor: pubkey_hex}) on the ledger object and in verify_file, returning the full Verification shape (AXM-003-12) including untrusted_actors. A Python consumer holding actors' keys can establish identity end-to-end without dropping to the Rust library.",
+      "uncertainty": "low"
+    },
+    {
+      "boundary": [
+        "Scope: verify_events family and Ledger::current_view / append_snapshot parent resolution in crates/axiomere, hence all surfaces",
+        "Validation is over the payload fields the format defines (record_id, snapshot_id, parent, status, score, reason, content); payloads missing required fields fail as malformed at their seq",
+        "Non-snapshot event types carry no payload schema under this claim — generic appends stay generic"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-06 (HIGH, DEMONSTRATED): a raw record.snapshot event with an invented snapshot_id (deadbeef…) and invented parent verifies ok=True, enters the current view, and the official snapshot() API then adopts the forged id as parent of the next legitimate snapshot — laundering the forgery into the lineage. Probe: rt-b/probes/p06_snapshot_forge.py; corpus: snap-forge.axmr",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "crates/axiomere/src/lib.rs: snapshot_id(content, parent) defines the address the read side must recompute; append_snapshot resolves the parent from current_view, which folds payloads without any validation — the write side's trust in the fold is the laundering path",
+          "source_quality": "artifact"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-6: re-run rt-b/probes/p06_snapshot_forge.py against the post-fix build — corpus snap-forge.axmr must FAIL verification at the forged event's seq with the lineage named, must not appear in the current view, and append_snapshot on a ledger containing it must refuse (the ledger fails Ledger::open) rather than adopt the forged parent."
+      ],
+      "id": "AXM-003-06",
+      "kind": "requirement",
+      "severity": "high",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "Snapshot payloads are validated wherever events are verified or folded: for every record.snapshot event, verification recomputes snapshot_id as SHA-256 over the canonical {content, parent} body and fails on mismatch; the named parent must be the snapshot_id of an earlier snapshot of the same record in the lineage (or null for the first), and fails otherwise. Because the fold validates before projecting, a forged snapshot can neither enter the current view nor be adopted as the parent of a later snapshot written through the API.",
+      "uncertainty": "low"
+    },
+    {
+      "boundary": [
+        "Scope: crates/axiomere append_snapshot / mark_dead / current_view / verify family; the bindings inherit the core behavior",
+        "Clause (d) is a semantic decision this spec makes explicit (DESIGN §2 names withdrawal as death 'in the open'); if the backward-compatibility corpus (AXM-003-13) contains an honest live-after-dead sequence, that instance is named there with its migration — it is not silently exempted here",
+        "Resurrection, if a future product need exists, must arrive as its own labeled act in a future spec — never as an ordinary snapshot"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-12 (MEDIUM, DEMONSTRATED): (i) after mark_dead, an ordinary live snapshot resurrects the record in the default view with no warning; (ii) append_snapshot with status=dead, reason=None succeeds and stores reason: null (only the wrapper's dead() helper and mark_dead require a reason); (iii) status 'Dead' is treated as LIVE by the default fold's exact-string match. Probe: rt-b/probes/p07_dead_battery.py; corpus: dead-a.axmr, dead-a2.axmr, dead-b.axmr, dead-c.axmr, dead-d.axmr",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RT-B held sub-result (p07 case b): a dead snapshot submitted with score=9.9 through the API is stored as 0.0 — write-side score forcing works and is preserved by clause (b); what is missing is the read-side check and the reason/status/terminality rules",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "Constitution Article II: withdrawal is a snapshot with status dead, a mandatory reason, and score 0.0 — the constitution already states the rule the core fails to enforce off the happy path",
+          "source_quality": "primary"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-7: re-run rt-b/probes/p07_dead_battery.py against the post-fix build — case (a) reason-less death rejected at write and on read; case (c) 'Dead' fails validation rather than folding live; case (d) live-after-dead refused at append and the resurrection corpus file fails fold validation; case (b) control: score forcing still stores 0.0."
+      ],
+      "id": "AXM-003-07",
+      "kind": "requirement",
+      "severity": "medium",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "Withdrawal semantics are enforced in the core on every path, not only the happy path: (a) a dead snapshot without a non-empty reason is rejected at write time by every core entry point that can create one, and fails verification on read; (b) a dead snapshot's score is 0.0 — write paths force it (already true) and verification fails a stored dead snapshot carrying any other score; (c) the status field is validated against the format's vocabulary (live, dead) wherever a snapshot is verified or folded — an unrecognized or case-variant status fails verification instead of folding as live; (d) death is terminal: append_snapshot refuses a live snapshot for a record whose current state is dead, and verification/fold validation fails a log in which a live snapshot follows a dead one for the same record, so a withdrawn record cannot silently return to the default view.",
+      "uncertainty": "medium"
+    },
+    {
+      "boundary": [
+        "Scope: crates/axiomere-py/src/lib.rs py_to_json and every bindings entry point that consumes payloads (append, snapshot)",
+        "This claim makes the labeled decision Spec 002 §6 deferred: v0.1.0 mapped non-finite floats to null at the entry points; from this spec they are errors at the bindings boundary (the Rust core's own JSON text path cannot represent non-finite values at all — serde_json rejects them — so the bindings become consistent with the core)",
+        "Consumers that relied on NaN-to-null (e.g. a statistic that came out undefined) now get a loud error at write time; that break is intended and is called out in the release notes obligation (plan.md)"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-07 (HIGH, DEMONSTRATED): in py_to_json, a failed conversion falls back instead of failing — float('nan') and float('inf') are stored as null; a Python int of 2**70 is stored as the float 1.1805916207174113e+21 and 2**64-1 as 1.8446744073709552e+19. No error, no warning; the ledger verifies; the bytes on disk are not what the caller submitted. Probe: rt-b/probes/p08_canon_battery.py cases (a)/(a2); corpus: lossy.axmr",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "crates/axiomere-py/src/lib.rs py_to_json: extraction tries i64, then f64 — u64 is never attempted — and Number::from_f64's None is unwrapped to Value::Null: the two exact lines where the corruption happens",
+          "source_quality": "artifact"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-8: via the post-fix bindings, attempt appends carrying NaN, +inf, -inf, 2**70, and -(2**70) — each must raise and leave the file byte-identical; then append 2**64-1 and 2**63 and read them back — both must return as exact integers, and a finite float payload must round-trip bit-exact."
+      ],
+      "id": "AXM-003-08",
+      "kind": "requirement",
+      "severity": "high",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "The Python bindings never silently change a caller's values: py_to_json rejects, with an error and nothing appended, any payload containing a non-finite float (NaN, +inf, -inf) or an integer outside the exactly-representable integer range [i64::MIN, u64::MAX]; integers inside that range are stored as integers (an int in [2^63, 2^64-1] is stored exactly as u64, not rounded through f64), and finite floats keep their exact bits. A failed conversion leaves the ledger byte-identical to before the call.",
+      "uncertainty": "low"
+    },
+    {
+      "boundary": [
+        "Scope: the file-reading path used for verification (read_events as consumed by Ledger::open, verify_file, CLI verify, bindings verify_file); in-memory event lists already produced by the API are not re-serialized",
+        "Enforcement applies to files the reference writer could not have produced; every file the core itself writes is canonical by construction (Ledger::append writes canonical(&event)), so honest files are unaffected — the backward-compatibility claim AXM-003-13 carries the corpus proof",
+        "A normalization/repair tool for mangled-but-honest files is a non-goal here; failure must name the line and the reason so a human can repair deliberately, outside verification"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-08 (MEDIUM, DEMONSTRATED): a copy of an honest ledger with every line re-serialized (reversed key order, \\uXXXX escapes, spaces around separators) verifies True; so do CRLF files, blank-line and space-padded files, and a file with an extra unknown field (auditor_note) injected into every event — verification is over parsed values, not bytes, contradicting DESIGN §4 / format.md 'verify each other's files byte-for-byte'. Probes: rt-b/probes/p08_canon_battery.py case (b), p11_filelevel.py; corpus: canon-mangled.axmr, file-crlf.axmr, file-blanks.axmr, file-spaces.axmr, file-extrafield.axmr",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-09 (MEDIUM, DEMONSTRATED): duplicating a payload key with a forged first occurrence verifies (True, 6, None) — serde_json keeps the last occurrence, so the parsed payload and its hash are the original, while any first-wins reader and any human skimming the raw line sees the forged value first. Probe: rt-b/probes/p13_dupkeys.py; corpus: dup-payload.axmr",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "docs/DECISION-2026-10-13-axmr-format.md + DESIGN §4: the format's stated rationale for canonical JSON lines is that the file IS the canonical form hashes are computed over and that strangers can verify without trusting our software — the premise byte-enforcement makes true",
+          "source_quality": "primary"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-9: re-run rt-b/probes/p08_canon_battery.py case (b) and p13_dupkeys.py against the post-fix build — canon-mangled.axmr and dup-payload.axmr must FAIL file verification with the offending line named, while the pristine victim.axmr (reference-written) passes byte-enforcement unchanged; any reference-written file in the compatibility corpus (AXM-003-13) failing byte-enforcement falsifies the 'honest files unaffected' boundary."
+      ],
+      "id": "AXM-003-09",
+      "kind": "decision",
+      "severity": "medium",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "DECISION (item: canonical form on read): verification of a ledger FILE enforces the canonical encoding byte-for-byte — every event line must equal canonical(parsed event) exactly, and any line the strict parser cannot read as exactly one event with exactly the format's fields (duplicate keys at any level, unknown event fields, non-canonical respellings, stray whitespace/blank lines/CRLF inside the event region) fails verification with the line named. The rejected alternative — keeping value-level verification and merely correcting the docs to say so — is recorded in spec §6: it would leave the file a human inspects different from the bytes that were verified, which is the inspectability failure RTB-08/RTB-09 demonstrate.",
+      "uncertainty": "medium"
+    },
+    {
+      "boundary": [
+        "Scope: documentation + frozen vectors in this repo (DESIGN §4 expansion; vectors as test fixtures under crates/axiomere/tests/fixtures/, force-added past the *.axmr gitignore per the Spec 002 lesson); the axiomere-python docs/format.md alignment is a companion obligation (AXM-003-15)",
+        "The vectors characterize the CURRENT reference behavior; where the document and the reference disagree, the reference's verified behavior on the compatibility corpus governs and the document is corrected — the corpus, not either text, is the arbiter"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-10 (MEDIUM, DEMONSTRATED, spec ambiguity): a verifier written from the spec text alone verifies the plain-ASCII victim ledger under two of three readings but rejects the honest unicode/float ledger under EVERY reading. Pinpointed divergences: exponent padding (reference 1e-7 vs Python shortest-form 1e-07), raw UTF-8 vs \\u escapes for non-ASCII, prev_hash as hex text vs raw bytes (the raw-bytes reading fails at seq 1). Probe: rt-b/probes/p09_naive.py; corpus: canon.axmr",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "Constitution Article V: 'Independent implementations must be able to verify an Axiomere file byte-for-byte from the published spec alone' — RTB-10 demonstrates the published spec does not currently meet the constitution's own standard",
+          "source_quality": "primary"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-10: re-run rt-b/probes/p09_naive.py rewritten to follow ONLY the pinned document + frozen vectors — it must verify victim.axmr and the unicode/float corpus file canon.axmr and reproduce every frozen vector exactly (canonical bodies, event hashes, Merkle roots for 0/1/2/3-hash sets, snapshot ids); any divergence between the naive verifier and the reference on an honest file falsifies the pin."
+      ],
+      "id": "AXM-003-10",
+      "kind": "requirement",
+      "severity": "medium",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "The canonical encoding is pinned normatively, with test vectors, so a from-spec implementation verifies reference files: DESIGN §4 (and the axiomere-python format doc as a companion) states (a) strings are emitted as raw UTF-8, escaping only the double quote, the backslash, and C0 control characters (using the short escapes where JSON defines them, \\u00XX otherwise); (b) non-integer numbers render as the shortest decimal that round-trips, with the exponent, when present, ALWAYS signed and written without leading zeros (1e-7 and 1.0086398161248257e+149 — never 1e-07, never an unsigned exponent; both forms measured from the reference implementation 2026-10-13), and parses must be correctly rounded per Spec 002; (c) the event hash is SHA-256 over the prev_hash HEX TEXT (64 lowercase hex characters; the genesis prev_hash is 64 zeros) concatenated with the canonical body text; (d) the Merkle construction (hex-text concatenation of pairs, odd element duplicated, empty set = SHA-256 of the empty string) and the snapshot_id construction (SHA-256 over canonical {content, parent}). Frozen test vectors generated from the reference implementation accompany the text, and a verifier written from the document plus vectors alone verifies the honest corpus including unicode/float files.",
+      "uncertainty": "medium"
+    },
+    {
+      "boundary": [
+        "Scope: verify API + bindings + CLI in this repo; Tekmerion's anchor-checking flow consuming the pin is a companion obligation (AXM-003-15)",
+        "The pin is supplied by the caller from out-of-band knowledge (an anchor receipt, a prior verification); this claim does not invent a place to store pins inside the ledger, which would be self-referential"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-11 (MEDIUM, DEMONSTRATED): deleting the last event (the checkpoint) from the victim ledger verifies (True, 5, None) — a prefix of a valid chain is a valid chain; no shipped verify surface offers an expected-head, expected-count, or expected-root parameter. Probe: rt-b/probes/p10_surgery.py; corpus: surg-truncate.axmr",
+          "source_quality": "test"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-11: verify corpus surg-truncate.axmr against victim.axmr's recorded head hash (28170e74…) and checkpoint root (e1858626…) — pinned verification must FAIL naming the shortfall, while bare verification of the same file passes (proving the pin, not a parser change, did the work); a pinned verification of the intact victim against its own head/root must pass."
+      ],
+      "id": "AXM-003-11",
+      "kind": "requirement",
+      "severity": "medium",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "Verification accepts an expected head and fails on shortfall: every verify surface (core, bindings verify/verify_file, CLI) can be given any combination of expected head hash, expected minimum event count, and expected checkpoint root (compared against the RECOMPUTED root per AXM-003-02), and returns failure with a named reason (head-mismatch / shortfall / root-mismatch) when the file does not reach the pin. Bare verification of a truncated prefix still passes — that prefix property is mathematically inherent — and the documents say so, naming the pin (or an external anchor checked under AXM-003-02) as the detection mechanism.",
+      "uncertainty": "low"
+    },
+    {
+      "boundary": [
+        "Scope: crates/axiomere-py verify_file, the core's file-verification entry points, crates/axiomere/src/bin/axiomere.rs verify",
+        "read_events and Ledger::open keep their raising contract (a broken log must not open for appends — DESIGN §3); only the standalone verify surfaces change"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-13 (LOW, DEMONSTRATED): axiomere.verify_file returns only (ok, events, reason) — no break_seq, no signature counts — and RAISES ValueError on malformed files (bad JSON line, second magic line, duplicate event field) instead of returning a failed verdict, so a consumer checking only the tuple never sees a verdict at all; the CLI surfaces parse errors and verification failures through the same path. Probes: rt-b/probes/p11_filelevel.py, p15_differential.py; corpus: file-magic2.axmr, dup-event.axmr",
+          "source_quality": "test"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-12: re-run rt-b/probes/p11_filelevel.py against the post-fix bindings — verify_file on every malformed corpus file must RETURN ok=False with break_seq and reason populated (no exception escaping), and on victim.axmr must return the full shape matching the core's Verification field-for-field."
+      ],
+      "id": "AXM-003-12",
+      "kind": "requirement",
+      "severity": "low",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "verify_file returns the full Verification result and never conflates unreadable with verified: on every surface it yields the complete shape (ok, events, break_seq, reason, signatures_checked, signatures_failed, and the new unsigned/untrusted reporting of AXM-003-03/04), and a malformed file — bad JSON line, second magic line, duplicate event field, non-canonical line — is reported as ok=False with break_seq/line and a named reason instead of raising. The CLI's verify likewise distinguishes 'cannot read this file' from 'this file fails verification' in its output and exit behavior. Callers who want exceptions use the strict reader (Ledger::open / read_events), which keeps raising.",
+      "uncertainty": "low"
+    },
+    {
+      "boundary": [
+        "Scope: outcomes under the DEFAULT policy of this spec (presence policy AXM-003-03, checkpoint recomputation, snapshot validation, byte enforcement); trusted-map mode is caller-supplied and not part of the default outcome",
+        "Deposited bundles are verified from fresh downloads/copies; originals are never mutated (the Spec 002 T203/T207 pattern)",
+        "A corpus file that is dishonest (fails v0.1.0 verification today) is out of the identical-outcome scope — it must fail post-fix too, for a named reason, and be listed as such"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "Spec 002 precedent (AXM-002-03): the same hard-constraint shape held for the float fix — pre-fix baselines recorded, post-fix run on copies, identical outcomes (Tekmerion Phase-5 study.axmr + bundle-v1..v4 -> True, 20/11/14/18/20 events)",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "Red Team E deposit verification (2026-10-13): all four Zenodo bundles and the OSF registration verified byte-identical to frozen copies with the v0.1.0 verifier, Merkle roots recomputed three ways — the corpus exists, is enumerable, and its v0.1.0 outcomes are on record",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "asserted",
+          "ref": "Design basis (asserted, to be demonstrated by the corpus run): every corpus file was written by the reference writer through the API — signed appends, API-built snapshots and checkpoints — so each new check verifies a property the honest writer already guarantees (canonical bytes, recomputed roots equal payload roots, snapshot ids are real content addresses, dead snapshots carry reasons and 0.0 scores)",
+          "source_quality": "primary"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-13: any corpus ledger that verifies under v0.1.0 and fails (or changes event count) under the new default policy without being named in the assessment with an explicit migration — a single unnamed outcome change falsifies this claim."
+      ],
+      "id": "AXM-003-13",
+      "kind": "requirement",
+      "severity": "high",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "BACKWARD COMPATIBILITY (hard constraint): every ledger frozen or deposited by Tekmerion studies to date verifies under the new verification policy with the identical outcome (same ok, same event count) it has under v0.1.0 — the corpus being: the .axmr ledgers tracked in AXIOVEX/tekmerion (the Spec 002 evaluation study ledger and its bundle-v1/bundle-v2 copies, the Spec 005 E6 demonstration audit ledger), the workspace-held frozen study ledgers (Phase 5 demo study + its bundled copies; the Spec 003 math study ledger), and the deposited bundles at Zenodo DOIs 10.5281/zenodo.23311479, 10.5281/zenodo.23317023, 10.5281/zenodo.23317259, 10.5281/zenodo.23319126 and OSF registration 84dk7. Pre-fix baselines are recorded before implementation; any corpus file whose outcome changes is named in the assessment with its explicit migration — no silent exemptions, no outcome change reported as anything but what it is.",
+      "uncertainty": "medium"
+    },
+    {
+      "boundary": [
+        "Scope: test fixtures + suites in crates/axiomere/tests and crates/axiomere-py smoke tests; fixture files force-added past the *.axmr gitignore as deliberate artifacts (Spec 002 assessment, process incident 1)",
+        "Expected verdicts that changed relative to v0.1.0 are exactly the forgery class; the manifest records per-file (pre-fix verdict, post-fix verdict, governing claim) so the change set is auditable rather than implied",
+        "surg-truncate.axmr's expected bare verdict remains ok=True (prefix property, AXM-003-11); its pinned verdict is the failure"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "rt-b/corpus: 38 crafted files + victim.axmr.manifest.json (victim/attacker keys, head hash 28170e74…, checkpoint root e1858626…), with captured probe outputs in rt-b/outputs p00–p15 — the complete, runnable evidence base this claim converts into fixtures",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "Constitution Article VI: verification features ship with seeded-defect tests, and a defect test that cannot fail against a deliberately defective build is decorative — the pre-fix tree IS the deliberately defective build for this suite",
+          "source_quality": "primary"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-14: run the adopted fixture suite against (i) the pre-fix build — every forgery fixture's test must FAIL there (a test that passes pre-fix is decorative and falsifies this claim), and (ii) the post-fix build — any forgery fixture verifying, any held-defense fixture changing verdict, or any core/CLI/bindings divergence on any corpus file falsifies this claim."
+      ],
+      "id": "AXM-003-14",
+      "kind": "requirement",
+      "severity": "high",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "The red-team corpus becomes the regression suite: the 38 crafted .axmr files of the 2026-10-13 engagement (rt-b/corpus) are adopted as fixtures in this repo with each file's expected verdict under the new policy recorded in a manifest, such that (a) every demonstrated forgery FAILS — forged-anchor, forged-anchor2, forged, strip-both, strip-sig, strip-signer, unsigned-append, atk-as-mallory (trusted mode), snap-forge, dup-payload, canon-mangled — each for the reason its claim names; (b) every defense that HELD still holds — victim.axmr and canon.axmr verify, the surgery family (surg-delete-middle, surg-swap, surg-dup-last, surg-edit1, surg-splice, surg-replay-dead) still fails at the same seq with the same reason family, mapped-actor key confusion still fails, magic discipline still fails closed; and (c) the core, CLI, and bindings return identical verdicts on every corpus file (the differential property RT-B verified for v0.1.0, H-6, preserved). Per Constitution Article VI, each fixture test must be shown to fail against a deliberately defective build (the pre-fix code) before it counts.",
+      "uncertainty": "low"
+    },
+    {
+      "boundary": [
+        "Scope: AXIOVEX/axiomere only; companion items are recorded so the seams are owned somewhere, mirroring Spec 002's §7 / AXM-002-08 pattern",
+        "Until the companions land, the exposure they close remains open at those layers and release notes for this spec must say so (Constitution Article IV)"
+      ],
+      "evidence": [
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "RTB-01 evidence: Tekmerion reads the checkpoint root from the payload in freeze.py (checkpoint['payload']['merkle_root']) and export.py (payload-root comparisons at export/anchor checks) — the core-side recomputation (AXM-003-02) only protects consumers who compare the recomputed value",
+          "source_quality": "test"
+        },
+        {
+          "direction": "supports",
+          "kind": "observed",
+          "ref": "Spec 002 §7 + AXM-002-08 precedent: the axiomere-python companion pattern (rebuild + regression test, executed there) worked and kept repo responsibilities honest",
+          "source_quality": "primary"
+        }
+      ],
+      "falsification_tests": [
+        "F-VP-15: a deliverable of THIS spec's build that edits axiomere-python or tekmerion sources, or an assessment of this spec that marks a companion obligation satisfied on this repo's evidence alone."
+      ],
+      "id": "AXM-003-15",
+      "kind": "decision",
+      "severity": "medium",
+      "source_ref": "specs/003-verification-policy/spec.md",
+      "status": "draft",
+      "text": "DECISION (repo boundaries): this spec's obligations end at this repo's surfaces (core, CLI, this repo's bindings crate). Two companion obligations are specified here and executed in their own repos: (1) axiomere-python — rebuild against the fixed core, expose the trusted map idiomatically, update docs/verification.md and docs/format.md to the pinned encoding and the new result shape, and add regression tests (trusted verify from Python per F-VP-5; the RTB-07 rejection battery per F-VP-8); (2) Tekmerion — compare RECOMPUTED checkpoint roots (never payload roots) in freeze/export/anchor flows (its freeze.py and export.py read payload roots today), and require signed mode plus a trusted map at study boundaries, which is the consumer-side act that closes the seedless-append exposure at the platform layer. Neither companion is executed from this repo, and this spec's assessment must not claim them done.",
+      "uncertainty": "low"
+    }
+  ],
+  "date": "2026-10-13",
+  "spec": "003-verification-policy",
+  "version": "0.1.0"
+}
