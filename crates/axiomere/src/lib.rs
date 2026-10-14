@@ -188,9 +188,18 @@ impl Ledger {
     /// Open an existing ledger, verifying the chain head state as we go.
     /// A log that fails verification cannot be opened for appends — a
     /// broken record is read-only evidence, never a writing surface.
+    /// Since Spec 003 the read is strict (FR-VP-08) and the
+    /// verification is the full default policy (C3, strengthened).
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
-        let events = read_events(&path)?;
+        let events = read_events_strict(&path).map_err(|fault| match fault {
+            FileFault::Io(e) => Error::Io(e),
+            FileFault::BadMagic => Error::BadMagic,
+            other => Error::Verification {
+                seq: other.break_seq().unwrap_or(0),
+                reason: other.reason().to_string(),
+            },
+        })?;
         let result = verify_events(&events);
         if !result.ok {
             return Err(Error::Verification {
@@ -253,8 +262,17 @@ impl Ledger {
         read_events(&self.path)
     }
 
+    /// Verify this ledger's file under the default policy. The file
+    /// is read strictly (FR-VP-08): the verified object is the bytes
+    /// on disk, not a lenient re-parse of them.
     pub fn verify(&self) -> Result<Verification> {
-        Ok(verify_events(&self.events()?))
+        Ok(verify_file(&self.path, &VerifyPolicy::default()))
+    }
+
+    /// Verify this ledger's file under an explicit policy (trusted
+    /// map and/or expected-head pin).
+    pub fn verify_with_policy(&self, policy: &VerifyPolicy) -> Result<Verification> {
+        Ok(verify_file(&self.path, policy))
     }
 
     // ------------------------------------------------------------ snapshots
@@ -275,6 +293,29 @@ impl Ledger {
             return Err(Error::Invalid(format!(
                 "status must be \"live\" or \"dead\", got {status:?}"
             )));
+        }
+        // FR-VP-06 (write side): death in the core requires a reason
+        // on every path, and death is terminal — no live snapshot may
+        // follow a dead one for the same record.
+        if status == "dead" {
+            match reason {
+                Some(r) if !r.is_empty() => {}
+                _ => {
+                    return Err(Error::Invalid(
+                        "a dead snapshot requires a non-empty reason".into(),
+                    ))
+                }
+            }
+        }
+        if status == "live" {
+            let view = self.current_view(true)?;
+            if let Some(cur) = view.get(record_id) {
+                if cur.get("status").and_then(|v| v.as_str()) == Some("dead") {
+                    return Err(Error::Invalid(format!(
+                        "record {record_id} is dead; death is terminal — a live snapshot cannot follow a dead one"
+                    )));
+                }
+            }
         }
         let parent = self
             .current_view(true)?
@@ -315,8 +356,23 @@ impl Ledger {
     /// Dead records are excluded unless `include_dead` is set. The fold
     /// is a projection — the log itself is never altered to produce it.
     pub fn current_view(&self, include_dead: bool) -> Result<BTreeMap<String, Value>> {
+        let events = self.events()?;
+        // The fold validates lineage as it goes (FR-VP-05/06): a view
+        // of an invalid lineage is refused, never laundered into a
+        // projection. (Ledgers reached through `Ledger::open` are
+        // already fully verified; this keeps the fold honest for any
+        // other construction path.)
+        let mut fold_state: BTreeMap<String, RecordState> = BTreeMap::new();
+        for ev in &events {
+            if let Err(reason) = fold_validate(&mut fold_state, ev) {
+                return Err(Error::Verification {
+                    seq: ev.seq,
+                    reason,
+                });
+            }
+        }
         let mut view: BTreeMap<String, Value> = BTreeMap::new();
-        for ev in self.events()? {
+        for ev in events {
             if ev.event_type == "record.snapshot" {
                 let p = &ev.payload;
                 if let Some(rid) = p.get("record_id").and_then(|v| v.as_str()) {
@@ -392,6 +448,118 @@ pub fn read_events(path: impl AsRef<Path>) -> Result<Vec<Event>> {
     Ok(out)
 }
 
+/// Why a strict file read failed, with the 1-based would-be seq of the
+/// offending event line where one exists.
+#[derive(Debug)]
+pub enum FileFault {
+    Io(std::io::Error),
+    BadMagic,
+    /// The line does not parse as an event at all.
+    Unparseable { seq: u64 },
+    /// The line parses, but its bytes are not the canonical encoding
+    /// of the parsed event (FR-VP-08).
+    NonCanonical { seq: u64 },
+}
+
+impl FileFault {
+    fn reason(&self) -> &'static str {
+        match self {
+            FileFault::Io(_) => "unreadable-file",
+            FileFault::BadMagic => "bad-magic",
+            FileFault::Unparseable { .. } => "unparseable-line",
+            FileFault::NonCanonical { .. } => "non-canonical-line",
+        }
+    }
+    fn break_seq(&self) -> Option<u64> {
+        match self {
+            // seq 0 marks a fault on the magic line itself (a CRLF
+            // magic): no event was reached, so there is no break seq.
+            FileFault::Unparseable { seq } | FileFault::NonCanonical { seq } if *seq > 0 => {
+                Some(*seq)
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Strict file reader (FR-VP-08): the verification paths read a ledger
+/// file byte-for-byte. Line 1 must be exactly the magic; every event
+/// line must equal `canonical(event)` for the event it parses to. Byte
+/// equality subsumes the duplicate-key, unknown-field, respelling,
+/// whitespace, CRLF, and blank-line cases: the writer's canonical form
+/// contains each key exactly once and nothing else, so any line
+/// carrying more — or spelled differently — differs from its own
+/// canonical form. A missing final newline is the one tolerated
+/// deviation: the last line still equals its canonical form.
+pub fn read_events_strict(path: impl AsRef<Path>) -> std::result::Result<Vec<Event>, FileFault> {
+    let bytes = std::fs::read(path.as_ref()).map_err(FileFault::Io)?;
+    let text = match String::from_utf8(bytes) {
+        Ok(t) => t,
+        Err(e) => {
+            // Locate the offending line for a named failure.
+            let valid_up_to = e.utf8_error().valid_up_to();
+            let seq = e.as_bytes()[..valid_up_to]
+                .iter()
+                .filter(|&&b| b == b'\n')
+                .count() as u64;
+            return Err(FileFault::Unparseable { seq: seq.max(1) });
+        }
+    };
+    let mut lines: Vec<&str> = text.split('\n').collect();
+    // A trailing newline yields one final empty segment — the file's
+    // terminator, not a blank line in the event region.
+    if lines.last().map(|l| l.is_empty()) == Some(true) {
+        lines.pop();
+    }
+    match lines.first() {
+        Some(&MAGIC) => {}
+        // A magic line carrying a carriage return is a CRLF file:
+        // FR-VP-08 names CRLF a non-canonical-line fault, not a bad
+        // magic. Genuinely wrong magic stays BadMagic.
+        Some(line) if line.strip_suffix('\r') == Some(MAGIC) => {
+            return Err(FileFault::NonCanonical { seq: 0 });
+        }
+        _ => return Err(FileFault::BadMagic),
+    }
+    let mut out = Vec::new();
+    for (idx, line) in lines.iter().skip(1).enumerate() {
+        let seq = (idx + 1) as u64;
+        if line.is_empty() {
+            return Err(FileFault::NonCanonical { seq });
+        }
+        let ev: Event = match serde_json::from_str(line) {
+            Ok(ev) => ev,
+            Err(_) => return Err(FileFault::Unparseable { seq }),
+        };
+        let canon = canonical(&serde_json::to_value(&ev).unwrap());
+        if canon != *line {
+            return Err(FileFault::NonCanonical { seq: ev.seq });
+        }
+        out.push(ev);
+    }
+    Ok(out)
+}
+
+/// Verify a ledger **file** under a policy (FR-VP-08 + FR-VP-11): the
+/// strict reader plus the full verification policy. This function
+/// always returns a verdict — malformed and unreadable files are
+/// `ok=false` results with a named reason, never an exception.
+pub fn verify_file(path: impl AsRef<Path>, policy: &VerifyPolicy) -> Verification {
+    match read_events_strict(path) {
+        Ok(events) => verify_events_with_policy(&events, policy),
+        Err(fault) => Verification {
+            ok: false,
+            events: fault.break_seq().map(|s| (s - 1) as usize).unwrap_or(0),
+            break_seq: fault.break_seq(),
+            reason: Some(fault.reason().to_string()),
+            signatures_checked: 0,
+            signatures_failed: 0,
+            unsigned_events: Vec::new(),
+            untrusted_actors: Vec::new(),
+        },
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Verification {
     pub ok: bool,
@@ -400,52 +568,254 @@ pub struct Verification {
     pub reason: Option<String>,
     pub signatures_checked: usize,
     pub signatures_failed: usize,
+    /// Seqs of events lacking `signer`, `sig`, or both. Reported in
+    /// every mode (Spec 003 FR-VP-02): an unsigned or partially signed
+    /// state is always visible, never silent. A failure is raised only
+    /// where the policy requires signatures (a ledger carrying
+    /// signature material, or trusted mode).
+    pub unsigned_events: Vec<u64>,
+    /// Actors seen in trusted mode that are absent from the trusted
+    /// map (Spec 003 FR-VP-03). Empty outside trusted mode.
+    pub untrusted_actors: Vec<String>,
 }
 
-/// Verify a parsed event list: sequence, links, hashes, and — where a
-/// trusted-keys map is supplied — signatures. Without a map, embedded
-/// signer keys are checked for self-consistency (the signature must
-/// verify against the key embedded in the event); trust in that key
-/// comes from comparing it to a key you hold out-of-band.
+/// An expected head to pin verification against (Spec 003 FR-VP-10).
+/// Any combination of fields may be set. Bare verification (no pin)
+/// accepts any valid prefix of a chain — a truncated file passes —
+/// and the pin is the detection.
+#[derive(Debug, Clone, Default)]
+pub struct ExpectedHead {
+    /// The hash of the last event the caller expects.
+    pub head_hash: Option<String>,
+    /// The minimum number of events the caller expects.
+    pub min_events: Option<usize>,
+    /// The Merkle root of the latest checkpoint, compared against the
+    /// root **recomputed** during verification — never the payload's
+    /// claim (FR-VP-01).
+    pub checkpoint_root: Option<String>,
+}
+
+/// The verification policy (Spec 003 §4). The structural checks —
+/// checkpoint recomputation, signature presence, snapshot/death
+/// validation, chain integrity — are unconditional: they restate the
+/// reference writer's own guarantees. What the caller chooses is whose
+/// keys to trust and what head to pin.
+#[derive(Debug, Clone, Default)]
+pub struct VerifyPolicy {
+    /// `None` = self-consistency (signatures checked against the keys
+    /// embedded in the events). `Some(map)` = identity mode, strict:
+    /// every event's actor must be in the map, every event must be
+    /// signed, and the signer must equal the mapped key. An empty map
+    /// trusts nobody — it is NOT the same input as `None`.
+    pub trusted: Option<BTreeMap<String, String>>,
+    pub expected_head: Option<ExpectedHead>,
+}
+
+/// Verify a parsed event list under the default policy
+/// (self-consistency, no head pin).
 pub fn verify_events(events: &[Event]) -> Verification {
-    verify_events_trusted(events, None)
+    verify_events_with_policy(events, &VerifyPolicy::default())
 }
 
+/// Verify with an optional trusted-key map (`None` = self-consistency;
+/// `Some` = strict identity mode, FR-VP-03).
 pub fn verify_events_trusted(
     events: &[Event],
     trusted: Option<&BTreeMap<String, String>>,
 ) -> Verification {
+    verify_events_with_policy(
+        events,
+        &VerifyPolicy {
+            trusted: trusted.cloned(),
+            expected_head: None,
+        },
+    )
+}
+
+fn is_signed(ev: &Event) -> bool {
+    ev.signer.is_some() && ev.sig.is_some()
+}
+
+/// The validating fold's per-record state (FR-VP-05/06).
+#[derive(Default)]
+struct RecordState {
+    snapshot_ids: Vec<String>,
+    dead: bool,
+}
+
+/// Validate one event against the snapshot lineage state, updating the
+/// state on success. Returns the failure reason. Only `record.snapshot`
+/// events are constrained; every other event type passes. Shared by
+/// verification and `current_view`, so a forged lineage is refused by
+/// both — never projected, never adopted as a parent.
+fn fold_validate(
+    state: &mut BTreeMap<String, RecordState>,
+    ev: &Event,
+) -> std::result::Result<(), String> {
+    if ev.event_type != "record.snapshot" {
+        return Ok(());
+    }
+    let p = ev.payload.as_object().ok_or("invalid-snapshot-payload")?;
+    let field = |k: &str| p.get(k).ok_or("invalid-snapshot-payload");
+    let record_id = field("record_id")?.as_str().ok_or("invalid-snapshot-payload")?;
+    let snap_id = field("snapshot_id")?.as_str().ok_or("invalid-snapshot-payload")?;
+    let parent_val = field("parent")?;
+    let parent: Option<&str> = match parent_val {
+        Value::Null => None,
+        Value::String(s) => Some(s.as_str()),
+        _ => return Err("invalid-snapshot-payload".into()),
+    };
+    let status = field("status")?.as_str().ok_or("invalid-snapshot-payload")?;
+    if status != "live" && status != "dead" {
+        return Err("invalid-status".into());
+    }
+    let score = field("score")?;
+    if !(score.is_null() || score.is_number()) {
+        return Err("invalid-snapshot-payload".into());
+    }
+    let reason = field("reason")?;
+    if !(reason.is_null() || reason.is_string()) {
+        return Err("invalid-snapshot-payload".into());
+    }
+    let content = field("content")?;
+    if snapshot_id(content, parent) != snap_id {
+        return Err("snapshot-id-mismatch".into());
+    }
+    let rec = state.entry(record_id.to_string()).or_default();
+    match parent {
+        None => {
+            if !rec.snapshot_ids.is_empty() {
+                return Err("snapshot-parent-unknown".into());
+            }
+        }
+        Some(par) => {
+            if !rec.snapshot_ids.iter().any(|s| s == par) {
+                return Err("snapshot-parent-unknown".into());
+            }
+        }
+    }
+    if status == "dead" {
+        match reason.as_str() {
+            Some(r) if !r.is_empty() => {}
+            _ => return Err("dead-reason-missing".into()),
+        }
+        match score.as_f64() {
+            Some(s) if s == 0.0 => {}
+            _ => return Err("dead-score-nonzero".into()),
+        }
+    }
+    if rec.dead && status == "live" {
+        return Err("live-after-dead".into());
+    }
+    rec.snapshot_ids.push(snap_id.to_string());
+    if status == "dead" {
+        rec.dead = true;
+    }
+    Ok(())
+}
+
+/// Verify a parsed event list under an explicit policy: sequence,
+/// links, hashes, checkpoint recomputation (FR-VP-01), snapshot
+/// lineage and death rules (FR-VP-05/06), signature presence
+/// (FR-VP-02), strict trusted mode (FR-VP-03), and the expected-head
+/// pin (FR-VP-10).
+pub fn verify_events_with_policy(events: &[Event], policy: &VerifyPolicy) -> Verification {
+    // Presence is a whole-ledger scan, computed up front so it is
+    // reported identically on success and on every failure.
+    let unsigned_events: Vec<u64> = events
+        .iter()
+        .filter(|e| !is_signed(e))
+        .map(|e| e.seq)
+        .collect();
+    let carries_signature_material = events
+        .iter()
+        .any(|e| e.signer.is_some() || e.sig.is_some());
+    let mut untrusted_actors: Vec<String> = Vec::new();
     let mut prev = GENESIS_HASH.to_string();
     let mut sig_checked = 0usize;
     let mut sig_failed = 0usize;
+    let mut hashes: Vec<String> = Vec::with_capacity(events.len());
+    let mut fold: BTreeMap<String, RecordState> = BTreeMap::new();
+    let mut last_checkpoint_root: Option<String> = None;
+    let fail = |reason: &str,
+                seq: u64,
+                checked: usize,
+                failed: usize,
+                unsigned: Vec<u64>,
+                untrusted: Vec<String>| Verification {
+        ok: false,
+        events: events.len(),
+        break_seq: Some(seq),
+        reason: Some(reason.to_string()),
+        signatures_checked: checked,
+        signatures_failed: failed,
+        unsigned_events: unsigned,
+        untrusted_actors: untrusted,
+    };
     for (i, ev) in events.iter().enumerate() {
         let expect_seq = (i + 1) as u64;
-        let fail = |reason: &str, checked, failed| Verification {
-            ok: false,
-            events: events.len(),
-            break_seq: Some(ev.seq),
-            reason: Some(reason.to_string()),
-            signatures_checked: checked,
-            signatures_failed: failed,
-        };
         if ev.seq != expect_seq {
-            return fail("seq-gap", sig_checked, sig_failed);
+            return fail("seq-gap", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
         }
         if ev.prev_hash != prev {
-            return fail("prev-link-mismatch", sig_checked, sig_failed);
+            return fail("prev-link-mismatch", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
         }
         if ev.hash != event_hash(&ev.prev_hash, &event_body(ev)) {
-            return fail("hash-mismatch", sig_checked, sig_failed);
+            return fail("hash-mismatch", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
         }
-        if let (Some(sig_hex), Some(signer_hex)) = (&ev.sig, &ev.signer) {
+        hashes.push(ev.hash.clone());
+        // FR-VP-01: a checkpoint's claimed root is never trusted. The
+        // writer commits the events preceding the checkpoint; recompute
+        // exactly that set and compare.
+        if ev.event_type == "checkpoint" {
+            let claimed = ev.payload.get("merkle_root").and_then(|v| v.as_str());
+            let upto = ev.payload.get("upto_seq").and_then(|v| v.as_u64());
+            match (claimed, upto) {
+                (Some(root), Some(upto)) if (upto as usize) <= i => {
+                    let refs: Vec<&str> =
+                        hashes[..upto as usize].iter().map(|s| s.as_str()).collect();
+                    let recomputed = merkle_root(&refs);
+                    if recomputed != root {
+                        return fail("checkpoint-root-mismatch", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+                    }
+                    last_checkpoint_root = Some(recomputed);
+                }
+                (Some(_), Some(_)) => {
+                    return fail("checkpoint-root-mismatch", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+                }
+                _ => {
+                    return fail("malformed-checkpoint", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+                }
+            }
+        }
+        // FR-VP-05/06: snapshot lineage + death rules, on read.
+        if let Err(reason) = fold_validate(&mut fold, ev) {
+            return fail(&reason, ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+        }
+        // FR-VP-02/03: presence and identity.
+        let signed = is_signed(ev);
+        if let Some(map) = &policy.trusted {
+            if !map.contains_key(&ev.actor) {
+                if !untrusted_actors.contains(&ev.actor) {
+                    untrusted_actors.push(ev.actor.clone());
+                }
+                return fail("untrusted-actor", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+            }
+            if !signed {
+                return fail("unsigned-event", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+            }
+        } else if !signed && carries_signature_material {
+            return fail("unsigned-event", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+        }
+        if signed {
             sig_checked += 1;
-            let expected_key = trusted
-                .and_then(|m| m.get(&ev.actor))
-                .map(|s| s.as_str())
-                .unwrap_or(signer_hex.as_str());
-            if expected_key != signer_hex {
-                sig_failed += 1;
-                return fail("signer-key-mismatch", sig_checked, sig_failed);
+            let signer_hex = ev.signer.as_ref().unwrap();
+            let sig_hex = ev.sig.as_ref().unwrap();
+            if let Some(map) = &policy.trusted {
+                if map.get(&ev.actor).map(|s| s.as_str()) != Some(signer_hex.as_str()) {
+                    sig_failed += 1;
+                    return fail("signer-key-mismatch", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+                }
             }
             let ok = (|| -> Option<bool> {
                 let pk_bytes = hex::decode(signer_hex).ok()?;
@@ -458,10 +828,29 @@ pub fn verify_events_trusted(
             .unwrap_or(false);
             if !ok {
                 sig_failed += 1;
-                return fail("signature-invalid", sig_checked, sig_failed);
+                return fail("signature-invalid", ev.seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
             }
         }
         prev = ev.hash.clone();
+    }
+    // FR-VP-10: the expected-head pin — the only truncation detection.
+    if let Some(head) = &policy.expected_head {
+        let last_seq = events.last().map(|e| e.seq).unwrap_or(0);
+        if let Some(min) = head.min_events {
+            if events.len() < min {
+                return fail("shortfall", last_seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+            }
+        }
+        if let Some(h) = &head.head_hash {
+            if &prev != h {
+                return fail("head-mismatch", last_seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+            }
+        }
+        if let Some(r) = &head.checkpoint_root {
+            if last_checkpoint_root.as_deref() != Some(r.as_str()) {
+                return fail("root-mismatch", last_seq, sig_checked, sig_failed, unsigned_events, untrusted_actors);
+            }
+        }
     }
     Verification {
         ok: true,
@@ -470,6 +859,8 @@ pub fn verify_events_trusted(
         reason: None,
         signatures_checked: sig_checked,
         signatures_failed: sig_failed,
+        unsigned_events,
+        untrusted_actors,
     }
 }
 

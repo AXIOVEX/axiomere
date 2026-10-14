@@ -1,0 +1,808 @@
+{
+    "corpus": "Red-team 2026-10-13, Team B crafted corpus (rt-b/corpus), adopted under Spec 003 T303.",
+    "trusted_map": {
+        "researcher": "2d0fa96b6ed7c3d233dc3a12f455cf451eeeb6afab24fe5349394d55264764f1",
+        "adjudicator": "2d0fa96b6ed7c3d233dc3a12f455cf451eeeb6afab24fe5349394d55264764f1"
+    },
+    "victim_head_hash": "28170e747f1552d095436b2c2bf53b0f9df29535dfa861f574e0a8adf535f343",
+    "victim_checkpoint_root": "e1858626f1fdf463d1ab80585679445acaefe30c46aec26e5367282abb998e6b",
+    "files": [
+        {
+            "file": "atk-as-mallory.axmr",
+            "claim": "AXM-003-04",
+            "note": "RTB-04: attacker-signed append under an actor absent from the trusted map. Bare self-consistency passes (by design); trusted mode must fail naming the actor.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 7,
+                "reason": null,
+                "trusted_ok": true,
+                "trusted_reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": false,
+                "trusted_reason": "untrusted-actor"
+            }
+        },
+        {
+            "file": "atk-as-victim.axmr",
+            "claim": "AXM-003-04",
+            "note": "Attacker key under a mapped actor name. Already caught pre-fix (held H-2); must stay caught.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 7,
+                "reason": null,
+                "trusted_ok": false,
+                "trusted_reason": "signer-key-mismatch"
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": false,
+                "trusted_reason": "signer-key-mismatch"
+            }
+        },
+        {
+            "file": "canon-mangled.axmr",
+            "claim": "AXM-003-09",
+            "note": "RTB-08: honest event re-serialized by a foreign writer (key order, escapes, spacing). Values verify; bytes must fail.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 1,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": false,
+                "file_reason": "non-canonical-line",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "canon.axmr",
+            "claim": "AXM-003-10",
+            "note": "Honest unicode/float battery written through the reference writer (p08). Must verify everywhere incl. strict bytes.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 1,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "conc.axmr",
+            "claim": "AXM-003-14",
+            "note": "Two-writer corruption (p12, held H-7): must stay failed at seq 7. Pre-fix the reason was seq-gap (the duplicate second seq-7). Post-fix the FIRST seq-7 copy is unsigned in a signed ledger, so signature presence (FR-VP-02) fails at seq 7 before the duplicate is reached \u2014 the held property (fails, at seq 7) is preserved with the earlier fault named.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": false,
+                "ok": false,
+                "events": 16,
+                "reason": "seq-gap"
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "unsigned-event",
+                "file_ok": false,
+                "file_reason": "unsigned-event",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "dead-a.axmr",
+            "claim": "AXM-003-13",
+            "note": "Victim-family ledger with a proper death (reasoned, score 0.0). Honest; must verify.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "dead-a2.axmr",
+            "claim": "AXM-003-07",
+            "note": "RTB-12(i): ordinary live snapshot resurrects a dead record. Death is terminal (FR-VP-06d).",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 3,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "live-after-dead",
+                "file_ok": false,
+                "file_reason": "live-after-dead",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "dead-b.axmr",
+            "claim": "AXM-003-07",
+            "note": "Honest unsigned death with reason: verifies; unsigned state is reported via unsigned_events, not failed (ledger carries no signature material).",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 2,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "dead-c.axmr",
+            "claim": "AXM-003-07",
+            "note": "RTB-12(ii): dead snapshot stored with reason null (via append_snapshot pre-fix). Must fail on read.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 2,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "dead-reason-missing",
+                "file_ok": false,
+                "file_reason": "dead-reason-missing",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "dead-d.axmr",
+            "claim": "AXM-003-06",
+            "note": "RTB-06 family: raw dead snapshot with invented snapshot_id and score 5.0; second event has status \"Dead\". First fault (id recompute) names the failure.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 2,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "snapshot-id-mismatch",
+                "file_ok": false,
+                "file_reason": "snapshot-id-mismatch",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "dup-event.axmr",
+            "claim": "AXM-003-12",
+            "note": "Event-level duplicate key: serde rejects the line. Post-fix verify_file returns ok=false instead of raising (RTB-13).",
+            "prefix": {
+                "read_ok": false,
+                "open_ok": false,
+                "ok": null,
+                "events": null,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": null,
+                "events_reason": null,
+                "file_ok": false,
+                "file_reason": "unparseable-line",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "dup-payload.axmr",
+            "claim": "AXM-003-09",
+            "note": "RTB-09: duplicated payload key with a forged first occurrence. Values (last-wins) verify; the bytes a human reads must fail.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": false,
+                "file_reason": "non-canonical-line",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "file-blanks.axmr",
+            "claim": "AXM-003-09",
+            "note": "RTB-08: blank lines inside the event region. Lenient reader skips them; strict reader fails.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": false,
+                "file_reason": "non-canonical-line",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "file-bom.axmr",
+            "claim": "AXM-003-12",
+            "note": "UTF-8 BOM before the magic (held H-4): fails closed, reported as a failed verdict, not an exception.",
+            "prefix": {
+                "read_ok": false,
+                "open_ok": false,
+                "ok": null,
+                "events": null,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": null,
+                "events_reason": null,
+                "file_ok": false,
+                "file_reason": "bad-magic",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "file-crlf.axmr",
+            "claim": "AXM-003-09",
+            "note": "RTB-08: CRLF line endings. Values verify; bytes fail.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": false,
+                "file_reason": "non-canonical-line",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "file-extrafield.axmr",
+            "claim": "AXM-003-09",
+            "note": "RTB-08: unknown field auditor_note injected into every event. Parser drops it; byte check catches it.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": false,
+                "file_reason": "non-canonical-line",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "file-magic2.axmr",
+            "claim": "AXM-003-12",
+            "note": "Second AXMR1 line mid-file (held H-4): unreadable as events, reported ok=false (RTB-13).",
+            "prefix": {
+                "read_ok": false,
+                "open_ok": false,
+                "ok": null,
+                "events": null,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": null,
+                "events_reason": null,
+                "file_ok": false,
+                "file_reason": "unparseable-line",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "file-noeol.axmr",
+            "claim": "AXM-003-09",
+            "note": "Missing final newline only: every line still equals its canonical form, so the file verifies (recorded interpretation of FR-VP-08).",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "file-spaces.axmr",
+            "claim": "AXM-003-09",
+            "note": "RTB-08: space-padded lines. Values verify; bytes fail.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": false,
+                "file_reason": "non-canonical-line",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "forged-anchor.axmr",
+            "claim": "AXM-003-02",
+            "note": "RTB-01 first attempt (held H-8 pre-fix as signature-invalid, the edited root was not re-signed). Post-fix the recomputation names the deeper fault first; the file must fail either way. Trusted mode fails earlier, at seq 1, on the attacker key under a mapped actor name.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": false,
+                "ok": false,
+                "events": 5,
+                "reason": "signature-invalid",
+                "trusted_ok": false,
+                "trusted_reason": "signer-key-mismatch"
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "checkpoint-root-mismatch",
+                "file_ok": false,
+                "file_reason": "checkpoint-root-mismatch",
+                "open_ok": false,
+                "trusted_ok": false,
+                "trusted_reason": "signer-key-mismatch"
+            }
+        },
+        {
+            "file": "forged-anchor2.axmr",
+            "claim": "AXM-003-02",
+            "note": "RTB-01 (Critical): forged history carrying the victim transplanted anchored root, re-signed with the attacker key. Bare verification must now fail on recomputation alone.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 5,
+                "reason": null,
+                "trusted_ok": false,
+                "trusted_reason": "signer-key-mismatch"
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "checkpoint-root-mismatch",
+                "file_ok": false,
+                "file_reason": "checkpoint-root-mismatch",
+                "open_ok": false,
+                "trusted_ok": false,
+                "trusted_reason": "signer-key-mismatch"
+            }
+        },
+        {
+            "file": "forged.axmr",
+            "claim": "AXM-003-14",
+            "note": "AK-1 residual by design: from-genesis rebuild is self-consistent and passes bare verification; under the victim trusted map its keys mismatch from seq 1. Anchoring + pins (AXM-003-02/11) are the detection, not bare verify.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 5,
+                "reason": null,
+                "trusted_ok": false,
+                "trusted_reason": "signer-key-mismatch"
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": false,
+                "trusted_reason": "signer-key-mismatch"
+            }
+        },
+        {
+            "file": "longline.axmr",
+            "claim": "AXM-003-13",
+            "note": "Honest single event with a very long payload line. Must verify.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 1,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "lossy.axmr",
+            "claim": "AXM-003-08",
+            "note": "Record of pre-fix bindings corruption (NaN/inf stored as null, 2^70 stored as float). The file is canonical and self-consistent, so it verifies; the fix is at write time (F-VP-8) and cannot retroactively flag it.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 1,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "snap-forge.axmr",
+            "claim": "AXM-003-06",
+            "note": "RTB-06: raw snapshot with invented snapshot_id/parent at seq 7, adopted as parent by seq 8. Lineage validation must fail it at seq 7.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 8,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "snapshot-id-mismatch",
+                "file_ok": false,
+                "file_reason": "snapshot-id-mismatch",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "strip-both.axmr",
+            "claim": "AXM-003-03",
+            "note": "RTB-02: signer+sig removed from every event. No signature material remains, so bare mode sees an unsigned ledger (reported in unsigned_events, not failed); trusted mode must fail \u2014 an unsigned event cannot establish identity.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null,
+                "trusted_ok": true,
+                "trusted_reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": false,
+                "trusted_reason": "unsigned-event"
+            }
+        },
+        {
+            "file": "strip-sig.axmr",
+            "claim": "AXM-003-03",
+            "note": "RTB-02: sig removed, signer remains. Signature material is present, so presence enforcement fails every event in every mode.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null,
+                "trusted_ok": true,
+                "trusted_reason": null
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "unsigned-event",
+                "file_ok": false,
+                "file_reason": "unsigned-event",
+                "open_ok": false,
+                "trusted_ok": false,
+                "trusted_reason": "unsigned-event"
+            }
+        },
+        {
+            "file": "strip-signer.axmr",
+            "claim": "AXM-003-03",
+            "note": "RTB-02: signer removed, sig remains. Same as strip-sig.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null,
+                "trusted_ok": true,
+                "trusted_reason": null
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "unsigned-event",
+                "file_ok": false,
+                "file_reason": "unsigned-event",
+                "open_ok": false,
+                "trusted_ok": false,
+                "trusted_reason": "unsigned-event"
+            }
+        },
+        {
+            "file": "surg-delete-middle.axmr",
+            "claim": "AXM-003-14",
+            "note": "Held H-1: middle event deleted. Must stay caught.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": false,
+                "ok": false,
+                "events": 5,
+                "reason": "seq-gap"
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "seq-gap",
+                "file_ok": false,
+                "file_reason": "seq-gap",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "surg-dup-last.axmr",
+            "claim": "AXM-003-14",
+            "note": "Held H-1: last event duplicated. Must stay caught.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": false,
+                "ok": false,
+                "events": 7,
+                "reason": "seq-gap"
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "seq-gap",
+                "file_ok": false,
+                "file_reason": "seq-gap",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "surg-edit1.axmr",
+            "claim": "AXM-003-14",
+            "note": "Held H-1: one payload character edited. Must stay caught.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": false,
+                "ok": false,
+                "events": 6,
+                "reason": "hash-mismatch"
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "hash-mismatch",
+                "file_ok": false,
+                "file_reason": "hash-mismatch",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "surg-replay-dead.axmr",
+            "claim": "AXM-003-14",
+            "note": "Held H-1: dead event line replayed. Must stay caught.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": false,
+                "ok": false,
+                "events": 7,
+                "reason": "seq-gap"
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "seq-gap",
+                "file_ok": false,
+                "file_reason": "seq-gap",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "surg-splice.axmr",
+            "claim": "AXM-003-14",
+            "note": "Held H-1: cross-ledger splice. Must stay caught.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": false,
+                "ok": false,
+                "events": 6,
+                "reason": "seq-gap"
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "seq-gap",
+                "file_ok": false,
+                "file_reason": "seq-gap",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "surg-swap.axmr",
+            "claim": "AXM-003-14",
+            "note": "Held H-1: two events swapped. Must stay caught.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": false,
+                "ok": false,
+                "events": 6,
+                "reason": "seq-gap"
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "seq-gap",
+                "file_ok": false,
+                "file_reason": "seq-gap",
+                "open_ok": false,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "surg-truncate.axmr",
+            "claim": "AXM-003-11",
+            "note": "RTB-11: honest prefix (checkpoint removed). Bare verification passes BY DESIGN; detection is the expected-head pin \u2014 see the pin expectations in policy tests (F-VP-11).",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 5,
+                "reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": null,
+                "trusted_reason": null
+            }
+        },
+        {
+            "file": "unsigned-append.axmr",
+            "claim": "AXM-003-03",
+            "note": "RTB-03: two unsigned events appended to a fully signed ledger. Presence enforcement must fail at seq 7.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 8,
+                "reason": null,
+                "trusted_ok": true,
+                "trusted_reason": null
+            },
+            "postfix": {
+                "events_ok": false,
+                "events_reason": "unsigned-event",
+                "file_ok": false,
+                "file_reason": "unsigned-event",
+                "open_ok": false,
+                "trusted_ok": false,
+                "trusted_reason": "unsigned-event"
+            }
+        },
+        {
+            "file": "victim.axmr",
+            "claim": "AXM-003-13",
+            "note": "Honest signed victim ledger (p00). Control: must verify on every surface, bare and trusted.",
+            "prefix": {
+                "read_ok": true,
+                "open_ok": true,
+                "ok": true,
+                "events": 6,
+                "reason": null,
+                "trusted_ok": true,
+                "trusted_reason": null
+            },
+            "postfix": {
+                "events_ok": true,
+                "events_reason": null,
+                "file_ok": true,
+                "file_reason": null,
+                "open_ok": true,
+                "trusted_ok": true,
+                "trusted_reason": null
+            }
+        }
+    ]
+}

@@ -1,0 +1,35 @@
+{
+ "source": "Generated from the reference implementation at 836d88c (Spec 003 T303, vecgen run 2026-10-13) and cross-checked value-for-value against spec.md §5, which was measured from the same implementation. Frozen: never hand-edit; regenerate and re-measure the spec if the implementation ever disagrees.",
+ "string_escape": {
+   "input": "café ☕ \"q\" \\ \u0001\u001f\n\t €",
+   "canonical": "\"café ☕ \\\"q\\\" \\\\ \\u0001\\u001f\\n\\t €\""
+ },
+ "event_body": {
+   "actor": "vect", "type": "note", "ts": 1792000000, "seq": 1,
+   "payload": {"text": "café ☕", "x": 1e-7},
+   "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+   "canonical": "{\"actor\":\"vect\",\"payload\":{\"text\":\"café ☕\",\"x\":1e-7},\"prev_hash\":\"0000000000000000000000000000000000000000000000000000000000000000\",\"seq\":1,\"ts\":1792000000,\"type\":\"note\"}",
+   "hash": "cbaa00f584506ec8d87c8596766651736afb14071cf4e00dc4538c83c4b8bfea"
+ },
+ "float_renderings": [
+   ["0.30000000000000004", "0.30000000000000004"],
+   ["123456789.12345679", "123456789.12345679"],
+   ["1.0", "1.0"],
+   ["-0.0", "-0.0"],
+   ["1e-7", "1e-7"],
+   ["5e-324", "5e-324"],
+   ["1.0086398161248257e+149", "1.0086398161248257e+149"],
+   ["1e+21", "1e+21"]
+ ],
+ "merkle_roots": {
+   "empty": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "one_aa": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "two_aa_bb": "fa0dafbf43f1f551e536353e9d1a942a8e86e41a0b58dfeaf264ef217f6b862a",
+   "three_aa_bb_cc": "f372961e0178fea099eb05057b8b6a363a21f7ee2456e6e17a8f92990d01d1f9"
+ },
+ "snapshot_ids": {
+   "content": {"k": "v"},
+   "with_parent_dddd": "1a270a907febde697935f2d5529521005d4a731b4455a4e2a04408ea2afb5520",
+   "null_parent": "ed346a259f7cc6f798ea9bc7727c38800cc5b81164691c37df6d4ec12bfda3ce"
+ }
+}
