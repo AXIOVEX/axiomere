@@ -50,11 +50,30 @@ fn py_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     if let Ok(b) = obj.extract::<bool>() {
         return Ok(Value::Bool(b));
     }
+    // FR-VP-07 (Spec 003): exact integers first — i64, then u64 (the
+    // range the JSON number model holds exactly). A Python int that
+    // fits neither is an ERROR, never a silent rounding through f64;
+    // a non-finite float is an ERROR, never a silent `null`. The
+    // pre-fix fallbacks made the Python surface less faithful than
+    // the core it wraps (RTB-07).
     if let Ok(i) = obj.extract::<i64>() {
         return Ok(Value::Number(i.into()));
     }
+    if let Ok(u) = obj.extract::<u64>() {
+        return Ok(Value::Number(u.into()));
+    }
+    if obj.is_instance_of::<pyo3::types::PyInt>() {
+        return Err(PyValueError::new_err(
+            "integer outside the exactly representable range [i64::MIN, u64::MAX]",
+        ));
+    }
     if let Ok(f) = obj.extract::<f64>() {
-        return Ok(serde_json::Number::from_f64(f).map(Value::Number).unwrap_or(Value::Null));
+        return match serde_json::Number::from_f64(f) {
+            Some(n) => Ok(Value::Number(n)),
+            None => Err(PyValueError::new_err(
+                "non-finite float (NaN or infinity) cannot be stored in an Axiomere payload",
+            )),
+        };
     }
     if let Ok(s) = obj.extract::<String>() {
         return Ok(Value::String(s));
@@ -132,16 +151,16 @@ impl PyLedger {
         Ok(serde_json::to_string(&ev).unwrap())
     }
 
-    fn verify(&self, py: Python<'_>) -> PyResult<PyObject> {
-        let v = self.inner.verify().map_err(to_py_err)?;
-        let dict = pyo3::types::PyDict::new_bound(py);
-        dict.set_item("ok", v.ok)?;
-        dict.set_item("events", v.events)?;
-        dict.set_item("break_seq", v.break_seq)?;
-        dict.set_item("reason", v.reason)?;
-        dict.set_item("signatures_checked", v.signatures_checked)?;
-        dict.set_item("signatures_failed", v.signatures_failed)?;
-        Ok(dict.into_py(py))
+    #[pyo3(signature = (trusted=None, expected_head=None))]
+    fn verify(
+        &self,
+        py: Python<'_>,
+        trusted: Option<BTreeMap<String, String>>,
+        expected_head: Option<BTreeMap<String, Bound<'_, PyAny>>>,
+    ) -> PyResult<PyObject> {
+        let policy = make_policy(trusted, expected_head)?;
+        let v = self.inner.verify_with_policy(&policy).map_err(to_py_err)?;
+        verification_to_py(py, &v)
     }
 
     #[pyo3(signature = (include_dead=false))]
@@ -198,11 +217,72 @@ fn generate_keypair() -> (String, String) {
     axiomere::generate_keypair()
 }
 
+/// Build a core `VerifyPolicy` from the Python-facing keyword
+/// arguments. `trusted=None` (self-consistency) and `trusted={}`
+/// (identity mode trusting nobody) are distinct inputs with distinct
+/// meanings (FR-VP-04). `expected_head` is a dict with optional keys
+/// `head_hash` (str), `min_events` (int), `checkpoint_root` (str).
+fn make_policy(
+    trusted: Option<BTreeMap<String, String>>,
+    expected_head: Option<BTreeMap<String, Bound<'_, PyAny>>>,
+) -> PyResult<axiomere::VerifyPolicy> {
+    let expected_head = match expected_head {
+        None => None,
+        Some(fields) => {
+            let mut head = axiomere::ExpectedHead::default();
+            for (k, v) in &fields {
+                match k.as_str() {
+                    "head_hash" => head.head_hash = Some(v.extract::<String>()?),
+                    "min_events" => head.min_events = Some(v.extract::<usize>()?),
+                    "checkpoint_root" => {
+                        head.checkpoint_root = Some(v.extract::<String>()?)
+                    }
+                    other => {
+                        return Err(PyValueError::new_err(format!(
+                            "unknown expected_head key: {other}"
+                        )))
+                    }
+                }
+            }
+            Some(head)
+        }
+    };
+    Ok(axiomere::VerifyPolicy {
+        trusted,
+        expected_head,
+    })
+}
+
+/// The full Verification shape as a Python dict (FR-VP-11): every
+/// field, on every surface — no reduced tuples.
+fn verification_to_py(py: Python<'_>, v: &axiomere::Verification) -> PyResult<PyObject> {
+    let dict = pyo3::types::PyDict::new_bound(py);
+    dict.set_item("ok", v.ok)?;
+    dict.set_item("events", v.events)?;
+    dict.set_item("break_seq", v.break_seq)?;
+    dict.set_item("reason", &v.reason)?;
+    dict.set_item("signatures_checked", v.signatures_checked)?;
+    dict.set_item("signatures_failed", v.signatures_failed)?;
+    dict.set_item("unsigned_events", &v.unsigned_events)?;
+    dict.set_item("untrusted_actors", &v.untrusted_actors)?;
+    Ok(dict.into_py(py))
+}
+
+/// Standalone file verification (FR-VP-11): returns the full result
+/// dict and never raises on a malformed or unreadable file — those
+/// are `ok=false` verdicts with a named reason. (`Ledger.open` keeps
+/// raising: opening for appends is a gate, C3.)
 #[pyfunction]
-fn verify_file(path: &str) -> PyResult<(bool, usize, Option<String>)> {
-    let events = axiomere::read_events(path).map_err(to_py_err)?;
-    let v = axiomere::verify_events(&events);
-    Ok((v.ok, v.events, v.reason))
+#[pyo3(signature = (path, trusted=None, expected_head=None))]
+fn verify_file(
+    py: Python<'_>,
+    path: &str,
+    trusted: Option<BTreeMap<String, String>>,
+    expected_head: Option<BTreeMap<String, Bound<'_, PyAny>>>,
+) -> PyResult<PyObject> {
+    let policy = make_policy(trusted, expected_head)?;
+    let v = axiomere::verify_file(path, &policy);
+    verification_to_py(py, &v)
 }
 
 #[pymodule]

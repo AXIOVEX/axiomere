@@ -1,0 +1,19 @@
+{
+ "file": "victim.axmr",
+ "victim_pub": "2d0fa96b6ed7c3d233dc3a12f455cf451eeeb6afab24fe5349394d55264764f1",
+ "victim_seed": "a4e22f36c302138406c14765fbb66872d2497e5b31c07174bdde39539c5734a0",
+ "attacker_pub": "baf65e780a65d5366911742cd5dcb473d1783b1564cbd4bc15e7b309835b0876",
+ "attacker_seed": "7f2d0162283c9abbc2f234097b657272a2a0904e8c929b3965f44587e48e456f",
+ "head_hash": "28170e747f1552d095436b2c2bf53b0f9df29535dfa861f574e0a8adf535f343",
+ "checkpoint_root": "e1858626f1fdf463d1ab80585679445acaefe30c46aec26e5367282abb998e6b",
+ "checkpoint_seq": 6,
+ "verify": {
+  "ok": true,
+  "events": 6,
+  "break_seq": null,
+  "reason": null,
+  "signatures_checked": 6,
+  "signatures_failed": 0
+ },
+ "events": 6
+}

@@ -1,0 +1,2 @@
+AXMR1
+{ "type" : "battery", "ts" : 1791926529, "seq" : 1, "prev_hash" : "0000000000000000000000000000000000000000000000000000000000000000", "payload" : {"exp_big": 1e+16, "exp_huge": 1e+100, "exp_small": 1e-07, "key_\u00e9": "non-ascii key", "neg_zero": -0.0, "nfc": "caf\u00e9", "nfd": "cafe\u0301", "subnormal": 5e-324, "third": 0.30000000000000004, "u64_max": 1.8446744073709552e+19}, "hash" : "806e35e2833337bee080e5025a8d075334777c3502b21fc6c86ad0525e8ab865", "actor" : "probe" }
