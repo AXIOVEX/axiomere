@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-20
+
 These entries record the verification-policy work (Spec 003), driven by
 an adversarial review of the first release. The review showed that
 verification checked the consistency of whatever a ledger file
